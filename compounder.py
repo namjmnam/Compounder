@@ -11,13 +11,12 @@ import re
 # for text cleansing
 
 class Corpus:
-    def __init__(self, inputPath):
+    def __init__(self, inputPath, words=2):
 
         # This program extracts possible compound words from a document
         # Works best with python version 3.6
         # Required packages: kss, eunjeon or konlpy
 		# Lacking capability: allCW does not check for duplicates
-        # Issues: IDE complains about adding r prefix to strings with backslashes on clean_str method
 
         self.target = self.clean_str(inputPath)
         # inputDoc is the whole document, and cleansed
@@ -29,7 +28,7 @@ class Corpus:
         # self.sList is the list of sentences from splitting the document
         # self.fList is the list of lists which contains all nouns in each sentences. this is also the map
 
-        self.nOfWords = 2
+        self.nOfWords = words
         # default is 2, meaning only looking for compound words with 2 words in them
         self.df = 0.85
         # damping factor
@@ -97,15 +96,15 @@ class Corpus:
         # read the text file and make it into a string
         text = open(inputPath, 'rt', encoding='UTF8').read().replace('\n',' ')
         # original source: https://blog.naver.com/PostView.nhn?blogId=wideeyed&logNo=221347960543
-        pattern = '([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)' # remove E-mail
+        pattern = r'([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)' # remove E-mail
         text = re.sub(pattern=pattern, repl='', string=text)
-        pattern = '(http|ftp|https)://(?:[-\w.]|(?:%[\da-fA-F]{2}))+' # remove URL
+        pattern = r'(http|ftp|https)://(?:[-\w.]|(?:%[\da-fA-F]{2}))+' # remove URL
         text = re.sub(pattern=pattern, repl='', string=text)
         pattern = '([ㄱ-ㅎㅏ-ㅣ]+)'  # remove singles
         text = re.sub(pattern=pattern, repl='', string=text)
         pattern = '<[^>]*>'         # remove HTML tags
         text = re.sub(pattern=pattern, repl='', string=text)
-        pattern = '[^\w\s]'         # remove special characters
+        pattern = r'[^\w\s]'         # remove special characters
         text = re.sub(pattern=pattern, repl='', string=text)
         while text.count('  ') != 0:
             text = text.replace('  ',' ')
@@ -256,3 +255,4 @@ class Corpus:
 # original link: https://www.kgnews.co.kr/news/article.html?no=628336
 path = "C:/inputDoc.txt"
 c = Corpus(path)
+# c = Corpus(path, 3)
