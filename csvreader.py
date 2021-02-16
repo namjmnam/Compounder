@@ -62,5 +62,5 @@ class Reader:
             out += ' ' + self.clean_str(self.readCSV(csv, i))
         return out
 
-path = "C:/comfinder/text.csv"
+path = "text.csv"
 r = Reader(path)

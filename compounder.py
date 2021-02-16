@@ -3,12 +3,21 @@ import math
 import kss
 # for splitting sentences
 # pip install kss
-from eunjeon import Mecab
-# for extracting nouns in Windows. on Linux it is valid to use following
-# from konlpy.tag import Mecab
-# pip install eunjeon
+
 import re
 # for text cleansing
+
+import sys
+platform = sys.platform
+if platform.startswith('win32'):
+    from eunjeon import Mecab # type: ignore
+    # pip install eunjeon
+elif platform.startswith('linux') or platform.startswith('darwin'):
+    from konlpy.tag import Mecab # type: ignore
+    # pip install konlpy
+else:
+    raise NotImplementedError
+# for extracting nouns
 
 class Corpus:
     def __init__(self, inputPath, words=2):
@@ -266,6 +275,6 @@ class Corpus:
 
 # doc = "박수현 이낙연 지지 율 하락 빚 청구서. 더불어 민주당 박수현 홍보소통 위원장 왼쪽 이낙연 대표. 사진 국회 의원 선거 운동 당시 이낙연 더불어민주당 상임공동선대위원장 박수현 공주시부여군청양군 후보의 지지를 호소하고 있는 모습. 박수현 더불어민주당 홍보소통위원장은 일 오는 월 임기 종료를 앞둔 이낙연 대표를 향해 대표로서 역대급 성과를 냈는데도 지지율이 하락하는 것을 섭섭해할 이유는 없다며 지지율 하락은 그 빚을 제대로 갚으라는 청구서라고 지적했다. 그러면서도 그동안 입법으로 성과를 말했고 개월이라는 짧은 시간에 그 목표를 달성했다고 했다. 박 위원장은 이날 오전 자신의 페이스북 글을 통해 이 대표는 년 월 대표 취임 이후 개월간 민주당을 이끌어왔다며 당 대표 출마를 선언할 때부터 개월짜리 대표란 꼬리표를 달고 시작을 했기 때문에 이 대표가 대표로서 활동할 시간도 개월밖에 남지 않은 셈이라고 했다. 그는 대권이라는 개인의 정치 목표 때문에 개월짜리 당대표가 된 것은 분명 빚이고 기꺼이 빚을 내어주신 국민과 당과 당원께 진 이 대표의 빚은 결코 작지 않다고 했다. 박 위원장은 이어 년 총선에서 민주당은 석이라는 역사상 유례가 없는 슈퍼정당을 만들었다. 이 대표는 취임 이후 당원들의 열망에 화답하듯 여러 개혁 민생 법안 처리를 이끌었다며 공수처법 개정안 등 권력기관 개혁 법안 공정경제 법 지방자치법 관련 법 법제화 등의 성과를 거론했다. 이뿐만 아니라 여건이 넘는 법안을 처리하며 슈퍼정당의 위력을 보여줬다고 덧붙였다. 박 위원장은 그러면서 개월간 수많은 개혁 민생 법안을 통과시켰음에도 개혁을 열망하는 국민과 당원은 아직도 목이 마르다며 마지막 남은 당대표 개월 당과 당원에게 빚을 갚아야 한다고 했다. 박 위원장은 지난 개월의 성과는 역대 어느 대표와도 견줄 수 없는 역대급이나 이 역시 거대여당을 만들어 준 국민과 당원에게 진 빚이라고 강조했다. 그러면서 개월 시한부 당 대표라는 꼬리표가 더 이상 꼬리표가 아닌 마침표가 될 수 있도록 남은 개월 동안 대한민국 개혁과 민주당 역사에 큰 방점을 찍어주길 바란다며 그것이 국민과 당과 당원에 진 빚을 갚는 유일한 길이라고 덧붙였다."
 # original link: https://www.kgnews.co.kr/news/article.html?no=628336
-path = "C:/comfinder/inputDoc.txt"
+path = "inputDoc.txt"
 c = Corpus(path)
 # c = Corpus(path, 3)
