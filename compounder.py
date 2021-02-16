@@ -3,12 +3,21 @@ import math
 import kss
 # for splitting sentences
 # pip install kss
-from eunjeon import Mecab
-# for extracting nouns in Windows. on Linux it is valid to use following
-# from konlpy.tag import Mecab
-# pip install eunjeon
+
 import re
 # for text cleansing
+
+import sys
+platform = sys.platform
+if platform.startswith('win32'):
+    from eunjeon import Mecab # type: ignore
+    # pip install eunjeon
+elif platform.startswith('linux') or platform.startswith('darwin'):
+    from konlpy.tag import Mecab # type: ignore
+    # pip install konlpy
+else:
+    raise NotImplementedError
+# for extracting nouns
 
 class Corpus:
     def __init__(self, inputPath, words=2):
