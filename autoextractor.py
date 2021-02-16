@@ -345,7 +345,7 @@ if __name__ == "__main__":
     # print(txt)
 
     # f = open("C:/comfinder/written.txt", 'w', encoding='utf8')
-    f = open("C:/comfinder/inputDoc.txt", 'w', encoding='utf8')
+    f = open("inputDoc.txt", 'w', encoding='utf8')
     f.write(txt)
     f.close()
 

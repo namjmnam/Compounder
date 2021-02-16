@@ -127,5 +127,5 @@ class Splitter:
         # this method outputs all possible combinations of a text
         pass
 
-path = "C:/comfinder/inputDoc.txt"
+path = "inputDoc.txt"
 s = Splitter(path)
