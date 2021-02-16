@@ -21,10 +21,12 @@ mkdir comfinder
 ## How to use each scripts
 * autoextractor.py
 Extracts text from online article(URL) and saves in C:\comfinder\inputDoc.txt 
-* compounder.py
-Looks for compound words from C:\comfinder\inputDoc.txt and display on command line
-* csvreader.py
+* csvreader.py (deprecated)
 Gets texts from a column named NEWS_BODY from C:\comfinder\text.csv and saves it in C:\comfinder\inputDoc.txt
+* compounder.py (deprecated)
+Looks for compound words from C:\comfinder\inputDoc.txt and display on command line
+* compounder2.py
+Looks for compound words from C:\comfinder\text.csv and saves it in C:\comfinder\output.txt and C:\comfinder\sortedoutput.txt
 * wordsplitter.py
 Splits words, still in development
 
