@@ -19,8 +19,6 @@ mkdir comfinder
 ```
 
 ## How to use each scripts
-* autoextractor.py
-Extracts text from online article(URL) and saves in C:\comfinder\inputDoc.txt 
 * csvreader.py (deprecated)
 Gets texts from a column named NEWS_BODY from C:\comfinder\text.csv and saves it in C:\comfinder\inputDoc.txt
 * compounder.py (deprecated)
