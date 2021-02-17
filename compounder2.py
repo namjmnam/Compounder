@@ -1,6 +1,5 @@
 # coding=UTF-8
 import math
-from os import O_APPEND
 import kss
 from eunjeon import Mecab
 import re
@@ -54,6 +53,7 @@ class Corpus:
         # 텍스트랭크 반복횟수 (임시:16)
         self.defIteration = 16
 
+        # allCW = [["단어1", "단어2", ...], ["단어a", "단어b", ...], ...] 복합단어의 가능성이 있는 모든 명사 리스트의 리스트
         self.allCW = []
         for i in range(len(self.fList)):
             n = self.genCW(self.fList[i])
@@ -61,31 +61,35 @@ class Corpus:
                 if self.searchSpaceless(j, self.target) > 1 and j not in self.allCW:
                     self.allCW.append(j)
 
-        self.finaldict = []
-        finallist = []
-        trdic = self.calculateTR(self.mList, self.fList, self.defIteration)
+        # trdic = {"단어1": TR1, "단어2": TR2, ...}
+        self.trdic = self.calculateTR(self.mList, self.fList, self.defIteration)
 
-        pmilist = []
+        # pmiList = [PMI1, PMI2, ...] allCW의 복합단어의 PMI 점수 리스트
+        pmiList = []
         for i in self.allCW:
-            pmilist.append(self.getPMI(i, self.wTotal, self.target))
+            pmiList.append(self.getPMI(i, self.wTotal, self.target))
 
+        # trmpiList = [TRPMI1, TRPMI2, ...] 복합단어를 구성하는 TR의 기하평균 곱하기 복합단어의 PMI
+        trpmiList = []
         for i in range(len(self.allCW)):
             k = self.allCW[i]
             key = 1
             for j in k:
-                key *= trdic[j]
+                key *= self.trdic[j]
             key **= (1 / len(k))
-            key *= pmilist[i]
-            finallist.append(key)
+            key *= pmiList[i]
+            trpmiList.append(key)
 
+        #gluedCW = ["복합단어1", "복합단어2", ...] allCW의 단어 구성 리스트를 합친 스트링 리스트
         gluedCW = []
         for i in self.allCW:
             gluedCW.append(''.join(i))
             
-        self.finaldict = dict(zip(gluedCW, finallist))
+        # compDict = {"복합단어1": 1.11, "복합단어2": 2.22, ...}
+        self.compDict = dict(zip(gluedCW, trpmiList))
 
         out = []
-        for i in self.finaldict.items():
+        for i in self.compDict.items():
             if i[1] > standard:
                 out.append(i[0])
 
@@ -97,6 +101,7 @@ class Corpus:
             f.write("\n")
             f.close()
 
+    # 파일 위치 입력값에서 CSV 또는 스트링 추출
     def extractText(self, inputPath):
         # CSV가 아닐 경우 TXT로 취급
         if inputPath[-4:] != ".csv":
@@ -106,6 +111,7 @@ class Corpus:
             return out
         return pandas.read_csv(inputPath, encoding='utf8')
 
+    # ["문장1", "문장2", ...] 형태의 리스트를 fList 형태로 변환
     def nounExt(self, sentList):
         # m = Mecab(dicpath='C:/mecab/mecab-ko-dic')
         m = Mecab()
@@ -195,6 +201,7 @@ class Corpus:
         if inputPath[-4:] != ".csv": return 1
         return len(pandas.read_csv(inputPath))
 
+    # CSV 테이블에서 스트링 추출
     def readValue(self, data, index):
         # CSV가 아닐 경우 입력된 값 그대로 리턴
         if isinstance(data, str): return data
