@@ -1,7 +1,7 @@
 # Compounder
 
 ## General info
-This project aims to search 
+This project aims to search compound words from various types of text sources
 	
 ## Compatibility
 * Python version: 3.6
@@ -24,8 +24,12 @@ Gets texts from a column named NEWS_BODY from C:\comfinder\text.csv and saves it
 * compounder.py (deprecated)
 Looks for compound words from C:\comfinder\inputDoc.txt and display on command line
 * compounder2.py
-Looks for compound words from C:\comfinder\text.csv and saves it in C:\comfinder\output.txt and C:\comfinder\sortedoutput.txt
+Looks for compound words from a csv, txt or string and saves it as a single txt file
 * wordsplitter.py
 Splits words, still in development
 
 Rest aren't really used
+
+## Test Files (input)
+* inputDoc.txt
+* text.csv
