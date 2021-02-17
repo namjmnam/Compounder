@@ -112,11 +112,11 @@ class Corpus:
         return pandas.read_csv(inputPath, encoding='utf8')
 
     # ["문장1", "문장2", ...] 형태의 리스트를 fList 형태로 변환
-    def nounExt(self, sentList):
+    def nounExt(self, sentlist):
         # m = Mecab(dicpath='C:/mecab/mecab-ko-dic')
         m = Mecab()
         out = []
-        for i in sentList:
+        for i in sentlist:
             out.append(m.nouns(i))
         return out
 
@@ -156,43 +156,61 @@ class Corpus:
         # 문장별 반복작업
         for i in map:
             if word in i:
-                # j가 word에서부터 몇 단어 이내로 떨어진 경우에만 추가하는 방식 검토 중
                 for j in i:
                     # 같은 단어가 여러 번 등장할 경우 중복으로 입력 -> 간선의 가중치가 증가
                     out.append(j)
         # 중복을 제거하여 가중치를 배제
-        # out = list(filter(lambda a: a != word, out))
+        # list(dict.fromkeys(out))
         # 리스트에 포함된 자기 자신 단 한 번만 제거
         out.remove(word)
         return out
+
+    # ngram 방식 간선 연결, 현재 미사용
+    def wordMapToNGram(self, word, nounlist, lexlist, ngram):
+        # word는 기본적으로 nounlist에 포함되어있는 명사를 인풋으로 받음
+        # nounlist는 mList를, lexlist는 lList를 인풋으로 받음
+        # ngram은 인덱스 최대거리 허용 수치
+        out = []
+        # 문장별 반복작업
+        for i in lexlist:
+            if word in i:
+                for j in i:
+                    if j in nounlist and self.nGram(i, word, j) <= ngram: out.append(j)
+        # 리스트에 포함된 자기 자신 단 한 번만 제거
+        out.remove(word)
+        return out
+    
+    # 주어진 list 내 i와 j 사이의 인덱스 거리 계산
+    def nGram(self, list, i, j):
+        return abs(list.index(i) - list.index(j))
     
     # 입력단 단어에 간선으로 연결된 모든 단어 갯수 출력
     def nOfConnections(self, word, map):
         return len(self.wordMapTo(word, map))
 
     # 모든 단어에 대해서 텍스트랭크를 입력된 이터레이션 만큼 계산하여 단어:TR의 사전으로 출력
-    def calculateTR(self, wordList, map, iteration):
-        values = [1 / len(wordList)] * len(wordList)
-        newValues = [0] * len(wordList)
-        node = dict(zip(wordList, values))
+    def calculateTR(self, wordlist, map, iteration):
+        values = [1 / len(wordlist)] * len(wordlist)
+        newValues = [0] * len(wordlist)
+        node = dict(zip(wordlist, values))
 
         for _ in range(iteration):
-            for i in range(len(wordList)):
-                key = wordList[i]
+            for i in range(len(wordlist)):
+                key = wordlist[i]
                 if self.wordMapTo(key, map) == []: newValues[i] = values[i]
                 for j in self.wordMapTo(key, map):
                     # TR을 간선으로부터 끌어모으는 방식:
                     # newValues[i] += node[j] / self.nOfConnections(j, map)
                     # TR을 간선을 통해 분배하는 방식:
-                    newValues[wordList.index(j)] += node[key] / self.nOfConnections(key, map)
+                    newValues[wordlist.index(j)] += node[key] / self.nOfConnections(key, map)
             values = newValues
-            newValues = [0] * len(wordList)
-            node = dict(zip(wordList, values))
+            newValues = [0] * len(wordlist)
+            node = dict(zip(wordlist, values))
 
         # 제동변수 계산
         for i in range(0, len(values)):
             values[i] = (1-self.df) + self.df * values[i]
-        node = dict(zip(wordList, values))
+        node = dict(zip(wordlist, values))
         return node
     
     # 입력된 CSV 파일의 행의 갯수 (정적 메소드) 
