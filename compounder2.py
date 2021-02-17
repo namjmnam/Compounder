@@ -8,12 +8,19 @@ import pandas
 class Corpus:
     def __init__(self, inputPath, outputPath, index=3, words=2, standard=0.3):
 
-        # CVS파일에서 복합단어를 추출
+        # CVS 또는 TXT 파일에서 복합단어를 추출
         # 파이썬 버전 3.6
         # 설치할 패키지: kss, eunjeon or konlpy
 
-        self.data = pandas.read_csv(inputPath)
-        txt = self.clean_str(self.readCSV(self.data, index))
+        # 입력변수
+        # inputPath: CSV 또는 TXT 파일의 위치
+        # outputPath: 출력할 텍스트 파일의 위치
+        # index: CSV 테이블에서 불러올 텍스트의 행 번호
+        # words: 복합단어를 이루는 단어 갯수 (기본:2)
+        # standards: 요구사항을 충족하는 TR+PMI 점수의 최소치 (기본:0.3)
+
+        self.data = self.extractText(inputPath)
+        txt = self.clean_str(self.readValue(self.data, index))
         # CSV 파일을 호출해서 행 번호(index)에 있는 값을 txt에 저장
 
         self.target = self.clean_str(txt)
@@ -22,13 +29,17 @@ class Corpus:
         self.sList = kss.split_sentences(self.target)
         self.fList = self.nounExt(self.sList)
         # txt에 포함된 모든 명사를 mecab을 이용하여 추출 후 문장별로 나눈 리스트
+        # target = "문서전체내용"
+        # nouns = ["명사1", "명사2", "명사3", ...]
+        # sList = ["문장1", "문장2", "문장3", ...]
+        # fList = [["문장1명사1", "문장1명사2", ...], ["문장2명사1", "문장2명사2", ...], ...]
 
         self.nOfWords = words
         # 복합단어를 이룰 단어의 갯수
         self.df = 0.85
         # 제동변수
-        self.defIteration = 10
-        # 텍스트랭크 이터레이션 수
+        self.defIteration = 16
+        # 텍스트랭크 이터레이션 수 (임시=16)
 
         self.masterList = []
         for i in self.fList:
@@ -39,7 +50,7 @@ class Corpus:
         for i in range(len(self.fList)):
             n = self.genCW(self.fList[i])
             for j in n:
-                if self.searchImproved(j, self.target) > 1 and j not in self.allCW:
+                if self.searchSpaceless(j, self.target) > 1 and j not in self.allCW:
                     self.allCW.append(j)
 
         self.finaldict = []
@@ -76,6 +87,16 @@ class Corpus:
             f.write('\n'.join(out))
             f.write("\n")
             f.close()
+        # 텍스트 파일로 출력
+
+    def extractText(self, inputPath):
+        # CSV가 아닐 경우 txt로 취급
+        if inputPath[-4:] != ".csv":
+            f = open(inputPath, 'r', encoding='utf8')
+            out = f.read()
+            f.close()
+            return out
+        return pandas.read_csv(inputPath)
 
     def nounExt(self, sentList):
         # tokenizer = Mecab(dicpath='C:/mecab/mecab-ko-dic')
@@ -96,59 +117,34 @@ class Corpus:
             wordpair = []
         return out
 
-    def search(self, word, target):
-        out = target.count(word)
-        return out
-
-    def per(self, n):
-        out = []
-        for i in range(1<<n-1):
-            s=bin(i)[2:]
-            s='0'*(n-1-len(s))+s
-            coms = []
-            for i in list(s):
-                if i == '0': coms.append('')
-                if i == '1': coms.append(' ')
-            coms.append('')
-            out.append(coms)
-        return out
-
-    def searchImproved(self, cList, target):
+    def searchSpaceless(self, cList, target):
         # 리스트 형태의 복합단어를 문서 전체에서 검색
-        out = 0
-        spaces = self.per(len(cList))
-        cwList = []
-        for i in range(len(spaces)):
-            w = ''
-            for j in range(len(cList)):
-                w += cList[j]
-                w += spaces[i][j]
-            cwList.append(w)
-        for i in cwList:
-            out += target.count(i)
-        return out
+        return target.count(''.join(cList))
 
     def getPMI(self, wordpair, nouns, target):
         # 리스트 형태의 복합단어를 문서 전체에 대해서 PMI 계산
         wTotal = len(nouns)
-        numerator = self.searchImproved(wordpair, target) / wTotal
-        # 분자 = p(w1,w2)
+        numerator = self.searchSpaceless(wordpair, target) / wTotal
+        # 분자 = p(w1, w2, ...)
         denominator = 1
         for i in wordpair:
-            denominator *= self.search(i, target) / wTotal
+            denominator *= target.count(i) / wTotal
         # 분모 = p(w1) * p(w2) * ...
         pmi = math.log(numerator / denominator)
         return pmi
-
 
     def wordMapTo(self, word, map):
         # 입력된 단어에 간선으로 연결된 모든 단어를 리스트로 출력 (같은 문장에 등장하는 단어들)
         out = []
         for i in map:
+            # 문장별
             if word in i:
                 for j in i:
-                    if j not in out:
-                        out.append(j)
+                    # if j not in out:
+                    #     # 중복을 방지하여 간선의 가중치를 배제하는 방식
+                    #     out.append(j)
+                    out.append(j)
+                    # 같은 단어가 여러 번 등장할 경우 간선의 가중치가 증가하는 방식
         out.remove(word)
         return out
     
@@ -178,10 +174,19 @@ class Corpus:
         return node
     
     def totalDocs(inputPath):
-        # 입력된 CSV 파일의 행의 갯수
+        # 입력된 CSV 파일의 행의 갯수 (정적 메소드) 
+        if inputPath[-4:] != ".csv": return 1
+        # 입력된 파일이 CSV가 아닐 경우 txt로 취급하여 1회 실행 유도
         return len(pandas.read_csv(inputPath))
 
-    def readCSV(self, data, index):
+    def readValue(self, data, index):
+        # CSV가 아닐 경우 입력된 값 그대로 리턴
+        if isinstance(data, str): return data
+        # NEWS_BODY 열이 없을 경우
+        if "NEWS_BODY" not in data.columns:
+            long = max(data.loc[index].tolist(), key=len)
+            return long
+        # NEWS_BODY 열만 불러오기
         return data.at[index, 'NEWS_BODY']
 
     def clean_str(self, text):
@@ -211,17 +216,22 @@ class Corpus:
             text = text.replace('  ',' ')
         return text
 
-csvFile = "C:/comfinder/text.csv"
+inputFile = "C:/comfinder/text.csv"
+# inputFile = "C:/comfinder/inputDoc.txt"
 outputFile = "C:/comfinder/output.txt"
 sortedOutputFile = "C:/comfinder/sortedoutput.txt"
+# 입출력 파일 위치 선언
 
 f = open(outputFile, 'w', encoding='utf8')
 f.write("")
 f.close()
 # 출력 파일 초기화
 
-for i in range(Corpus.totalDocs(csvFile)):
-    c = Corpus(csvFile, outputFile, i)
+iterNum = Corpus.totalDocs(inputFile)
+# iterNum = 10
+for i in range(iterNum):
+    c = Corpus(inputFile, outputFile, i)
+# CSV파일의 행 수 만큼 코드 실행
 
 f = open(sortedOutputFile, 'w', encoding='utf8')
 f.write("")
@@ -231,8 +241,8 @@ f.close()
 lines_seen = set()
 outfile = open(sortedOutputFile, "w")
 for line in open(outputFile, "r", encoding='utf8'):
-    if line not in lines_seen: # not a duplicate
+    if line not in lines_seen:
         outfile.write(line)
         lines_seen.add(line)
 outfile.close()
-# 출력 파일을 정리하여 출력
+# 출력 파일의 중복을 제거하여 따로 출력
