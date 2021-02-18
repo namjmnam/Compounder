@@ -64,8 +64,11 @@ class Corpus:
                 if self.searchSpaceless(j, self.target) > 1 and j not in self.allCW:
                     self.allCW.append(j)
 
-        # trdic = {"단어1": TR1, "단어2": TR2, ...}
-        self.trdic = self.calculateTR(self.mList, self.lList, self.ngram, self.defIteration)
+        # trdic = {"단어1": TR1, "단어2": TR2, ...} (기존방식)
+        self.trdic = self.calculateTROld(self.mList, self.fList, self.defIteration)
+
+        # trdic = {"단어1": TR1, "단어2": TR2, ...} (N그램 방식)
+        # self.trdic = self.calculateTR(self.mList, self.lList, self.ngram, self.defIteration)
 
         # pmiList = [PMI1, PMI2, ...] allCW의 복합단어의 PMI 점수 리스트
         pmiList = []
@@ -135,12 +138,15 @@ class Corpus:
         return out
 
     # 리스트 형태의 복합단어를 문서 전체에서 검색
-    def searchSpaceless(self, cList, target):
+    def searchSpaceless(self, wordpair, target):
         # 본문에서 띄어쓰기를 제외한 채로 검색할 경우:
-        # return target.replace(' ','').count(''.join(cList))
+        # return target.replace(' ','').count(''.join(wordpair))
+
+        # 본문에서 띄어쓰기를 제외하지 않은 채로 띄어쓴 채로 검색할 경우
+        # return target.count(' '.join(wordpair)))
 
         # 본문에서 띄어쓰기를 제외하지 않은 채로 검색할 경우:
-        return target.count(''.join(cList))
+        return target.count(''.join(wordpair))
 
     # 리스트 형태의 복합단어를 문서 전체에 대해서 PMI 계산
     def getPMI(self, wordpair, wordcount, target):
@@ -152,6 +158,21 @@ class Corpus:
             denominator *= target.count(i) / wordcount
         pmi = math.log(numerator / denominator)
         return pmi
+
+    # 입력된 단어에 간선으로 연결된 모든 단어를 리스트로 출력 (같은 문장에 등장시 연결)
+    def wordMappingOld(self, word, flist):
+        out = []
+        # 문장별 반복작업
+        for i in flist:
+            if word in i:
+                for j in i:
+                    # 같은 단어가 여러 번 등장할 경우 중복으로 입력 -> 간선의 가중치가 증가
+                    out.append(j)
+        # 중복을 제거하여 가중치를 배제
+        # list(dict.fromkeys(out))
+        # 리스트에 포함된 자기 자신 단 한 번만 제거
+        out.remove(word)
+        return out
 
     # 입력된 단어에 간선으로 연결된 모든 단어를 리스트로 출력 (ngram 방식)
     def wordMapping(self, word, wordlist, lexlist, ngram):
@@ -171,10 +192,39 @@ class Corpus:
     # 주어진 list 내 i와 j 사이의 인덱스 거리 계산
     def nGram(self, list, i, j):
         return abs(list.index(i) - list.index(j))
+
+    # 입력단 단어에 간선으로 연결된 모든 단어 갯수 출력 (기존방식)
+    def nOfConnectionsOld(self, word, flist):
+        return len(self.wordMappingOld(word, flist))
     
     # 입력단 단어에 간선으로 연결된 모든 단어 갯수 출력
     def nOfConnections(self, word, wordlist, lexlist, ngram):
         return len(self.wordMapping(word, wordlist, lexlist, ngram))
+
+    # 모든 단어에 대해서 텍스트랭크를 입력된 이터레이션 만큼 계산하여 단어:TR의 사전으로 출력 (기존방식)
+    def calculateTROld(self, wordlist, flist, iteration):
+        values = [1 / len(wordlist)] * len(wordlist)
+        newValues = [0] * len(wordlist)
+        node = dict(zip(wordlist, values))
+
+        for _ in range(iteration):
+            for i in range(len(wordlist)):
+                key = wordlist[i]
+                if self.wordMappingOld(key, flist) == []: newValues[i] = values[i]
+                for j in self.wordMappingOld(key, flist):
+                    # TR을 간선으로부터 끌어모으는 방식:
+                    # newValues[i] += node[j] / self.nOfConnections(j, map)
+                    # TR을 간선을 통해 분배하는 방식:
+                    newValues[wordlist.index(j)] += node[key] / self.nOfConnectionsOld(key, flist)
+            values = newValues
+            newValues = [0] * len(wordlist)
+            node = dict(zip(wordlist, values))
+
+        # 제동변수 계산
+        for i in range(0, len(values)):
+            values[i] = (1-self.df) + self.df * values[i]
+        node = dict(zip(wordlist, values))
+        return node
 
     # 모든 단어에 대해서 텍스트랭크를 입력된 이터레이션 만큼 계산하여 단어:TR의 사전으로 출력
     def calculateTR(self, wordlist, lexlist, ngram, iteration):
@@ -246,9 +296,10 @@ class Corpus:
         return text
 
 # 입출력 선언
-inputFile = r"C:/comfinder/text.csv"
+# inputFile = r"C:/comfinder/text.csv"
 # inputFile = r"C:/comfinder/inputDoc.txt"
 # inputFile = r"박수현 이낙연 지지 율 하락 빚 청구서. 더불어 민주당 박수현 홍보소통 위원장 왼쪽 이낙연 대표. 사진 국회 의원 선거 운동 당시 이낙연 더불어민주당 상임공동선대위원장 박수현 공주시부여군청양군 후보의 지지를 호소하고 있는 모습. 박수현 더불어민주당 홍보소통위원장은 일 오는 월 임기 종료를 앞둔 이낙연 대표를 향해 대표로서 역대급 성과를 냈는데도 지지율이 하락하는 것을 섭섭해할 이유는 없다며 지지율 하락은 그 빚을 제대로 갚으라는 청구서라고 지적했다. 그러면서도 그동안 입법으로 성과를 말했고 개월이라는 짧은 시간에 그 목표를 달성했다고 했다. 박 위원장은 이날 오전 자신의 페이스북 글을 통해 이 대표는 년 월 대표 취임 이후 개월간 민주당을 이끌어왔다며 당 대표 출마를 선언할 때부터 개월짜리 대표란 꼬리표를 달고 시작을 했기 때문에 이 대표가 대표로서 활동할 시간도 개월밖에 남지 않은 셈이라고 했다. 그는 대권이라는 개인의 정치 목표 때문에 개월짜리 당대표가 된 것은 분명 빚이고 기꺼이 빚을 내어주신 국민과 당과 당원께 진 이 대표의 빚은 결코 작지 않다고 했다. 박 위원장은 이어 년 총선에서 민주당은 석이라는 역사상 유례가 없는 슈퍼정당을 만들었다. 이 대표는 취임 이후 당원들의 열망에 화답하듯 여러 개혁 민생 법안 처리를 이끌었다며 공수처법 개정안 등 권력기관 개혁 법안 공정경제 법 지방자치법 관련 법 법제화 등의 성과를 거론했다. 이뿐만 아니라 여건이 넘는 법안을 처리하며 슈퍼정당의 위력을 보여줬다고 덧붙였다. 박 위원장은 그러면서 개월간 수많은 개혁 민생 법안을 통과시켰음에도 개혁을 열망하는 국민과 당원은 아직도 목이 마르다며 마지막 남은 당대표 개월 당과 당원에게 빚을 갚아야 한다고 했다. 박 위원장은 지난 개월의 성과는 역대 어느 대표와도 견줄 수 없는 역대급이나 이 역시 거대여당을 만들어 준 국민과 당원에게 진 빚이라고 강조했다. 그러면서 개월 시한부 당 대표라는 꼬리표가 더 이상 꼬리표가 아닌 마침표가 될 수 있도록 남은 개월 동안 대한민국 개혁과 민주당 역사에 큰 방점을 찍어주길 바란다며 그것이 국민과 당과 당원에 진 빚을 갚는 유일한 길이라고 덧붙였다."
+inputFile = r"C:/comfinder/top50.csv"
 outputFile = r"C:/comfinder/output.txt"
 sortedOutputFile = r"C:/comfinder/sortedoutput.txt"
 
