@@ -6,6 +6,7 @@ import re
 import sys
 from numpy.lib.function_base import append
 import pandas
+from collections import Counter
 
 class Corpus:
     def __init__(self, inputPath, index=3, words=2, standard=0.3):
@@ -14,9 +15,6 @@ class Corpus:
         # 파이썬 버전 3.6
         # 설치할 패키지: kss, eunjeon, pandas
         # 차후 eunjeon에서 konlpy로 이전 예정
-        # 현 문제점 - allCW에서 gluedCW로 넘어갈때 중복되는 단어가 있을 수 있음
-        # 예: ['사', '무동'], ['사무', '동']
-        # gluedCW+trpmiList로 compDict를 종합할 때 중복되는 단어는 뒤에 오는 밸류를 채택하는것으로 보임
 
         # 입력변수
         # inputPath: CSV 또는 TXT 파일의 위치 (너무 길 경우 원문 스트링으로 인식하여 분석)
@@ -100,7 +98,9 @@ class Corpus:
             gluedCW.append(''.join(i))
         
         # compDict = {"복합단어1": 1.11, "복합단어2": 2.22, ...}
-        self.compDict = dict(zip(gluedCW, trpmiList))
+        if self.detectDuplicates(gluedCW) == 0:
+            self.compDict = dict(zip(gluedCW, trpmiList))
+        else: self.compDict = self.eliminateDuplicates(gluedCW, trpmiList)
 
         self.out = []
         for i in self.compDict.items():
@@ -115,6 +115,41 @@ class Corpus:
         #     f.write("\n")
         #     f.close()
 
+    # 중복되는 단어를 찾아서 묶어준다. 예를 들어서 2번째와 5번째, 8번째와 10번째가 같을 경우 [[1,4],[7,9]]
+    def detectDuplicates(self, wordlist):
+        # wordlist는 기본적으로 gluedCW를 인풋으로 받음
+        getlist = wordlist[:]
+        c = Counter(getlist)
+        out = []
+        sublist = []
+        for i in getlist:
+            if c[i] > 1:
+                for _ in range(c[i]):
+                    n = getlist.index(i)
+                    getlist[n] = ""
+                    sublist.append(n)
+                out.append(sublist)
+                sublist = []
+        return(out)
+
+    # compDict로 종합하기 전 동일한 점수를 가진 두 리스트 제거하여 compDict를 리턴
+    def eliminateDuplicates(self, wordlist, scorelist):
+        # 기본적으로 wordlist는 gluedCW, scorelist는 trpmiList를 인풋으로 받음 
+        duplicateslist = self.detectDuplicates(wordlist)
+        for i in duplicateslist:
+            # wordlist[i[0]]만 남기고 모두 빈 스트링 처리
+            score = scorelist[i[0]]
+            for j in i[1:]:
+                wordlist[j] = ''
+                score *= scorelist[j]
+                scorelist[j] = ''
+            # trpmiList는 기하평균값으로 계산하여 scorelist[i[0]]만 남기고 모두 빈 스트링 처리
+            score **= 1/len(i)
+            scorelist[i[0]] = score
+            # 빈 스트링 모두 제거
+            wordlist = list(filter(('').__ne__, wordlist))
+            scorelist = list(filter(('').__ne__, scorelist))
+            return dict(zip(wordlist, scorelist))
 
     # 리스트의 두 번째부터 마지막 엘리먼트가 리스트의 첫 번째부터 마지막 두 번째 엘리먼트까지 같은 경우를 모두 찾아냄
     def detectRedundant(self, cwlist):
