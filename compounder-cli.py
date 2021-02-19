@@ -467,3 +467,4 @@ iterNum = Corpus.totalDocs(inputFile)
 for i in range(iterNum):
     c = Corpus(inputFile, i)
     if len(c.out) > 0: print(c.out)
+    # print(sorted(c.trdic, key=c.trdic.get, reverse=True)[:10]) # TextRank 상위 10개 출력
