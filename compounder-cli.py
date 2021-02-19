@@ -303,8 +303,8 @@ class Corpus:
                 for j in i:
                     # 같은 단어가 여러 번 등장할 경우 중복으로 입력 -> 간선의 가중치가 증가
                     out.append(j)
-        # 중복을 제거하여 가중치를 배제
-        # list(dict.fromkeys(out))
+        # 중복을 제거하여 가중치를 배제 (사용가능, 비활성)
+        # out = list(dict.fromkeys(out))
         # 리스트에 포함된 자기 자신 단 한 번만 제거
         out.remove(word)
         return out
