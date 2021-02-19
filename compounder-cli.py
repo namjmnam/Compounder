@@ -1,12 +1,20 @@
 # coding=UTF-8
 import math
 import kss
-from eunjeon import Mecab
-# from konlpy.tag import Mecab
 import re
-import sys
 import pandas
 from collections import Counter
+
+import sys
+platform = sys.platform
+if platform.startswith('win32'):
+    from eunjeon import Mecab # type: ignore
+    # pip install eunjeon
+elif platform.startswith('linux') or platform.startswith('darwin'):
+    from konlpy.tag import Mecab # type: ignore
+    # pip install konlpy
+else:
+    raise NotImplementedError
 
 class Corpus:
     def __init__(self, inputPath, index=3, words=2, standard=0.3):
@@ -15,6 +23,16 @@ class Corpus:
         # 파이썬 버전 3.6
         # 설치할 패키지: kss, eunjeon, pandas
         # 차후 eunjeon에서 konlpy로 이전 예정
+
+        # 리눅스 환경 mecab-ko-dic 설치과정
+        # wget -c https://bitbucket.org/eunjeon/mecab-ko-dic/downloads/최신버전-mecab-ko-dic.tar.gz
+        # tar zxfv  최신버전-mecab-ko-dic.tar.gz
+        # cd 최신버전-mecab-ko-dic
+        # ./configure
+        # make
+        # make check
+        # sudo make install
+        # 위 과정을 거치면 /usr/local/lib/mecab/dic/mecab-ko-dic 경로에 mecab-ko-dic 설치
 
         # 입력변수
         # inputPath: CSV 또는 TXT 파일의 위치 (너무 길 경우 원문 스트링으로 인식하여 분석)
@@ -34,6 +52,7 @@ class Corpus:
         self.target = self.clean_str(txt)
         m = Mecab()
         # m = Mecab(dicpath='C:/mecab/mecab-ko-dic') # (사용불가능, 비활성)
+        # m = Mecab(dicpath='/usr/local/lib/mecab/dic/mecab-ko-dic') # (사용불가능, 비활성)
 
         # wTotal = (int)문서 내 명사 갯수
         # fList = [["문장1명사1", "문장1명사2", ...], ["문장2명사1", "문장2명사2", ...], ...]
@@ -201,6 +220,7 @@ class Corpus:
     def nounExt(self, sentlist):
         m = Mecab()
         # m = Mecab(dicpath='C:/mecab/mecab-ko-dic') # (사용불가능, 비활성)
+        # m = Mecab(dicpath='/usr/local/lib/mecab/dic/mecab-ko-dic') # (사용불가능, 비활성)
         out = []
         for i in sentlist:
             out.append(m.nouns(i))
