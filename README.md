@@ -1,7 +1,7 @@
 # Compounder
 
 ## General info
-This project aims to search compound words from various types of text sources
+This project aims to search compound words and new words from various types of text sources
 	
 ## Compatibility
 * Python version: 3.6
@@ -24,7 +24,7 @@ Looks for compound words from C:\comfinder\inputDoc.txt and display on command l
 * compounder-cli.py
 Looks for compound words from a csv file, txt file or document string and saves it as a single txt file or prints results on command line
 * wordsplitter.py
-Splits words, not functional, under development
+Searches for new words in a string of a document. Under development
 
 ## Test Files (input)
 * inputDoc.txt
