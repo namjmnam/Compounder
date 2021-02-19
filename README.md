@@ -14,8 +14,6 @@ Set up your own conda env with Python version 3.6.
 pip install eunjeon
 pip install kss
 pip install pandas
-C:
-mkdir comfinder
 ```
 
 ## How to use each scripts
@@ -23,12 +21,10 @@ mkdir comfinder
 Gets texts from a column named NEWS_BODY from C:\comfinder\text.csv and saves it in C:\comfinder\inputDoc.txt
 * compounder.py (deprecated)
 Looks for compound words from C:\comfinder\inputDoc.txt and display on command line
-* compounder2.py
-Looks for compound words from a csv, txt or string and saves it as a single txt file
+* compounder-cli.py
+Looks for compound words from a csv file, txt file or document string and saves it as a single txt file or prints results on command line
 * wordsplitter.py
-Splits words, still in development
-
-Rest aren't really used
+Splits words, not functional, under development
 
 ## Test Files (input)
 * inputDoc.txt
