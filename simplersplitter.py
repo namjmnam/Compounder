@@ -93,6 +93,20 @@ class Splitter:
             if finalscore >= 2 / self.wTotal: self.extnouns.append(chosen)
         self.extnouns = list(dict.fromkeys(self.extnouns))
 
+        # 여기서 Mecab은 기존에 등록된 명사인지 아닌지 판단하기 위해 + 끝에 조사가 오는 단어를 제거하기 위해 사용
+        m = Mecab()
+        # m = Mecab(dicpath='C:/mecab/mecab-ko-dic') # (사용불가능, 비활성)
+        # m = Mecab(dicpath='/usr/local/lib/mecab/dic/mecab-ko-dic') # (사용불가능, 비활성)
+        temp = self.extnouns[:]
+        for i in temp:
+            # 끝에 조사가 오는 경우 제외
+            if m.pos(i)[-1][1][0] in ['E', 'J'] or '+E' in m.pos(i)[-1][1] or '+J' in m.pos(i)[-1][1]:
+                self.extnouns.remove(i)
+                continue
+            # 기존에 등록된 명사 제외
+            if len(m.pos(i)) == 1 and m.pos(i)[0][1][0] == 'N':
+                self.extnouns.remove(i)
+
     # 텍스트 클렌징
     def clean_str(self, text):
         text = text.replace(u'\xa0', u' ')
@@ -117,7 +131,7 @@ class Splitter:
         text = text.replace('\n', ' ')
         text = text.replace('\t', ' ')
         text = text.replace('\r', ' ')
-        text = re.sub('[0-9]+[건만억년월일]', '', text)
+        text = re.sub('[0-9]+[조층위건만억년월일]', '', text)
         text = re.sub('[0-9]+.[0-9]+%', '', text)
         text = re.sub('\b[0-9]+\b\s*', '', text)
         text = text.upper()
@@ -132,7 +146,6 @@ class Splitter:
 
     # 한 어절에 대해서 모든 2자 이상의 LP 나열 리스트
     def genLP(self, eojeol):
-        # 괄호 뒤에 오는 어절도 인풋으로 받을 방법 필요?
         out = []
         if eojeol[-1] == '.': eojeol = eojeol[:-1]
         for i in range(2, len(eojeol)+1):
