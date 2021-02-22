@@ -37,20 +37,14 @@ class Splitter:
         # doc = "원문전체 문자열"
         self.doc = self.clean_str(inputText)
         # corpus = 말뭉치. 데이터 형태 미정 (사용불가능, 비활성)
-        if inputCorpus == None: self.corpus = self.doc
-        else: self.corpus = inputCorpus
+        if inputCorpus == None: self.corpus = ' ' + self.doc
+        else: self.corpus = self.clean_str(' ' + inputCorpus)
 
-        # eoList = ["어절1", "어절2", "어절3", ...] 한 문서 내 4자 이상의 어절 리스트, 숫자는 한 문자로 취급
-        # 괄호 속 문장 추출하여 문서에 추가, 현재 첫 번째 괄호 외 추출 안 되고 있음 (사용불가, 비활성)
-        # s = self.doc + ' '
-        # missed = ' '
-        # while s.count("(") > 0 and s.count(")") > 0:
-        #     p = s[s.find("(")+1:s.find(")")]
-        #     missed += p
-        # s += missed
-        # tempdoc = s
+        # wTotal = 말뭉치 총 어절 수
+        self.wTotal = self.corpus.count(' ')
+
         l = self.doc.split(' ')
-        self.eoList = [i for i in l if len(re.sub(r'[0-9]+', '-', i)) >= 4]
+        self.eoList = [i for i in l if len(re.sub(r'[0-9]+', '-', i)) >= 3]
 
         # 괄호가 포함된 어절 출력
         missed = []
@@ -64,7 +58,7 @@ class Splitter:
                 missed.append(i[:-1])
         parenthesisless = [x for x in self.eoList if  not '(' in x and not ')' in x] + [x for x in self.eoList if '(' in x and ')' in x]
         parenthesisless += missed
-        self.eoList = parenthesisless
+        self.eoList = parenthesisless # 괄호가 한 쪽만 포함된 어절을 모두 제거하고 괄호 속 어절을 포함
 
         # [LP, UM, RP] 형태가 가능한 모든 조합을 리스트로 구축
         self.posUMpairList = []
@@ -87,12 +81,6 @@ class Splitter:
         for i in iter:
             if len(i) > 1: self.lplist.append(self.genLP(i))
 
-        # 디버깅용
-        # for i in self.genLP("마스턴투자운용의"):
-        #     print(i + " : " + str(self.corpus.count(i) / len(self.eoList)))
-        # for i in self.genLP("업무시설이다"):
-        #     print(i + " : " + str(self.corpus.count(i) / len(self.eoList)))
-
         # 명사로 추정되는 문자열 리스트 추출 -> extnouns
         self.extnouns = []
         for i in self.lplist:
@@ -100,7 +88,11 @@ class Splitter:
             finalscore = 0
             chosen = ''
             for j in range(len(i)):
-                scores.append(self.corpus.count(i[j]) / len(self.eoList))
+                # 현재는 단순히 말뭉치에 띄어쓰기+단어가 검색된 갯수만 찾지만 본래 어절의 좌측부분만 검색하도록 해야 함
+                # 문제점1: 말뭉치는 클렌징이 되어있지 않음
+                # 문제점2: 기존에 이미 발견된 명사를 제외한 말뭉치에서 검색해야 함
+                # 문제점3: corpus의 단어 수로 나눠야 함
+                scores.append(self.corpus.count(' ' + i[j]) / self.wTotal)
             for j in range(len(scores)):
                 if j >= len(scores)-1:
                     chosen = i[j]
@@ -113,16 +105,17 @@ class Splitter:
                     finalscore = scores[j]
                     break
                 finalscore = scores[j]
-            # 빈도율이 4% 이상인 경우 채택
-            if finalscore > 0.04: self.extnouns.append(chosen)
+            # 빈도율이 2/어절수 이상인 경우 채택
+            if finalscore >= 2 / self.wTotal: self.extnouns.append(chosen)
         self.extnouns = list(dict.fromkeys(self.extnouns))
-
+        
+        # 여기서 Mecab은 단일 글자가 어떠한 글자인지 판단하기 위해 사용
         m = Mecab()
         # m = Mecab(dicpath='C:/mecab/mecab-ko-dic') # (사용불가능, 비활성)
         # m = Mecab(dicpath='/usr/local/lib/mecab/dic/mecab-ko-dic') # (사용불가능, 비활성)
         # 한글이 아닌 문자가 갈라지는 경우 제외
         # 예: ['신한BN', 'P파리', '바자산운용으로부터'], ['', '320', '0억원에'] 등
-        temp = self.posUMpairList[:]
+        temp = self.posUMpairList[:] # temp와 포인터가 같으면 곤란하기 때문에 새로 메모리 할당
         for i in self.posUMpairList:
             # LP가 빈 문자열이 아니고 LP의 마지막 글자와 UM의 첫 글자가 모두 한글이외 문자일 경우 후보에서 제거
             if len(i[0]) > 0 and m.pos(i[0][-1])[0][1][0] == 'S' and m.pos(i[1][0])[0][1][0] == 'S': temp.remove(i)
@@ -134,13 +127,32 @@ class Splitter:
         # candidates: 신조어 최종 후보 리스트
         self.candidates = []
         for i in self.posUMpairList:
-            # KRP가 비어있는 경우: UM을 말뭉치에 대해 검색하여 3번 이상 등장할 경우 LP+UM 등록
-            if i[2] == '' and self.corpus.count(i[1]) >= 3:
+            # KRP가 비어있는 경우: UM을 말뭉치에 대해 검색하여 2번 이상 등장할 경우 LP+UM 등록
+            if i[2] == '' and self.corpus.count(i[1]) >= 2:
                 self.candidates.append(i[0]+i[1])
-            # KRP가 비어있지 않은 경우: UM+KRP[0](KRP의 첫 형태소)를 말뭉치에 대해 검색하여 3번 이상 등장할 경우 LP+UM 등록
-            elif i[2] != '' and self.corpus.count(i[1]+m.morphs(i[2])[0]) >= 3:
+            # KRP가 비어있지 않은 경우: UM+KRP[0](KRP의 첫 형태소)를 말뭉치에 대해 검색하여 2번 이상 등장할 경우 LP+UM 등록
+            elif i[2] != '' and self.corpus.count(i[1]+m.morphs(i[2])[0]) >= 2:
                 self.candidates.append(i[0]+i[1])
         self.candidates = list(dict.fromkeys(self.candidates))
+
+        # 서로를 포함하는 어절 빈도수 기준으로 정리
+        temp = []
+        for i in range(len(self.candidates)-1):
+            if self.candidates[i] in self.candidates[i+1]:
+                if self.wordFreq(self.candidates[i], self.corpus) > self.wordFreq(self.candidates[i+1], self.corpus) * 1.1: temp.append(self.candidates[i])
+            elif self.candidates[i-1] in self.candidates[i]:
+                if self.wordFreq(self.candidates[i-1], self.corpus) * 0.9 < self.wordFreq(self.candidates[i], self.corpus): temp.append(self.candidates[i])
+            else: temp.append(self.candidates[i])
+        if self.wordFreq(self.candidates[-2], self.corpus) * 0.9 < self.wordFreq(self.candidates[-1], self.corpus): temp.append(self.candidates[-1])
+        self.candidates = temp
+
+        # 여기서 Mecab은 기존에 등록된 명사인지 아닌지 판단하기 위해 사용
+        # 기존에 등록된 명사 제외
+        temp = []
+        for i in self.candidates:
+            if len(m.pos(i)) > 1 or m.pos(i)[0][1][0] != 'N':
+                temp.append(i)
+        self.candidates = temp
 
         # 기타 아이디어
         # RP를 말뭉치에 대해서 검색하고 UM을 말뭉치에 대해서 검색하여 RP의 비율이 더 많은 경우 KRP로 가정할 수 있는지?
@@ -182,6 +194,10 @@ class Splitter:
         while text.count('  ') != 0:
             text = text.replace('  ',' ')
         return text
+    
+    # 한 단어의 말뭉치에 대한 빈도 수를 계산 (빈도율이 아님)
+    def wordFreq(self, word, corpus):
+        return corpus.count(word)
 
     # 어절 분리가 가능한 모든 조합 나열 리스트 [[LP1, UM1, RP1], [LP2, UM2, RP2], ...] UM은 사전에 등록되지 않은 부분
     def splitEojeol(self, eojeol):
@@ -381,8 +397,11 @@ class Splitter:
 # 입력 선언
 # path = "C:/comfinder/inputDoc.txt"
 # text = open(path, 'rt', encoding='utf8').read().replace('\n',' ')
-text = r"11월 입찰 예정서울시 구로구 구로동에 위치한 `센터포인트 웨스트(구 서부금융센터)` 마스턴투자운용은 서울시 구로구 구로동 '센터포인트 웨스트(옛 서부금융센터)' 매각에 속도를 낸다.27일 관련업계에 따르면 마스턴투자운용은 지난달 삼정KPMG·폴스트먼앤코 아시아 컨소시엄을 매각 주관사로 선정한 후 현재 잠재 매수자에게 투자설명서(IM)를 배포하고 있는 단계다. 입찰은 11월 중순 예정이다.2007년 12월 준공된 '센터포인트 웨스트'는 지하 7층~지상 40층, 연면적 9만5000여㎡(약 2만8000평) 규모의 프라임급 오피스다. 판매동(테크노마트)과 사무동으로 이뤄졌다. 마스턴투자운용의 소유분은 사무동 지하 1층부터 지상 40층이다. 지하 1층과 지상 10층은 판매시설이고 나머지는 업무시설이다. 주요 임차인으로는 삼성카드, 우리카드, 삼성화재, 교보생명, 한화생명 등이 있다. 임차인의 대부분이 신용도가 높은 대기업 계열사 혹은 우량한 금융 및 보험사 등이다.'센터포인트 웨스트'는 서울 서남부 신도림 권역 내 최고층 빌딩으로 초광역 교통 연결성을 보유한 오피스 입지를 갖췄다고 평가받는다. 최근 신도림·영등포 권역은 타임스퀘어, 영시티, 디큐브시티 등 프라임급 오피스들과 함께 형성된 신흥 업무 권역으로 주목받고 있다고 회사 측은 설명했다.마스턴투자운용 측은   2021년 1분기를 클로징 예상 시점으로 잡고 있다  며   신도림 권역의 랜드마크로서 임대 수요가 꾸준해 안정적인 배당이 가능한 투자상품이 될 것  이라고 설명했다.한편 마스턴투자운용은 지난 2017년 말 신한BNP파리바자산운용으로부터 당시 '서부금융센터'를 약 3200억원에 사들였으며 이후 '센터포인트 웨스트'로 이름을 바꿨다.[김규리 기자 wizkim61@mkinternet.com]"
+# text = r"11월 입찰 예정서울시 구로구 구로동에 위치한 `센터포인트 웨스트(구 서부금융센터)` 마스턴투자운용은 서울시 구로구 구로동 '센터포인트 웨스트(옛 서부금융센터)' 매각에 속도를 낸다.27일 관련업계에 따르면 마스턴투자운용은 지난달 삼정KPMG·폴스트먼앤코 아시아 컨소시엄을 매각 주관사로 선정한 후 현재 잠재 매수자에게 투자설명서(IM)를 배포하고 있는 단계다. 입찰은 11월 중순 예정이다.2007년 12월 준공된 '센터포인트 웨스트'는 지하 7층~지상 40층, 연면적 9만5000여㎡(약 2만8000평) 규모의 프라임급 오피스다. 판매동(테크노마트)과 사무동으로 이뤄졌다. 마스턴투자운용의 소유분은 사무동 지하 1층부터 지상 40층이다. 지하 1층과 지상 10층은 판매시설이고 나머지는 업무시설이다. 주요 임차인으로는 삼성카드, 우리카드, 삼성화재, 교보생명, 한화생명 등이 있다. 임차인의 대부분이 신용도가 높은 대기업 계열사 혹은 우량한 금융 및 보험사 등이다.'센터포인트 웨스트'는 서울 서남부 신도림 권역 내 최고층 빌딩으로 초광역 교통 연결성을 보유한 오피스 입지를 갖췄다고 평가받는다. 최근 신도림·영등포 권역은 타임스퀘어, 영시티, 디큐브시티 등 프라임급 오피스들과 함께 형성된 신흥 업무 권역으로 주목받고 있다고 회사 측은 설명했다.마스턴투자운용 측은   2021년 1분기를 클로징 예상 시점으로 잡고 있다  며   신도림 권역의 랜드마크로서 임대 수요가 꾸준해 안정적인 배당이 가능한 투자상품이 될 것  이라고 설명했다.한편 마스턴투자운용은 지난 2017년 말 신한BNP파리바자산운용으로부터 당시 '서부금융센터'를 약 3200억원에 사들였으며 이후 '센터포인트 웨스트'로 이름을 바꿨다.[김규리 기자 wizkim61@mkinternet.com]"
+text = r"글로벌빅데이터연구소,?약?22만개?사이트?대상?9개?증권사?빅데이터?분석투자자?관심도?1위는?하나금융투자,?관심도?상승률?1위는?미래에셋대우  [파이낸셜뉴스]지난해 국내 주요 증권사에 대한 투자자 관심도를 조사한 결과 '하나금융투자'가 가장 높았던 것으로 나타났다. 같은 기간 관심도 상승률은 '미래에셋대우'가 가장 높았다.   5일 글로벌빅데이터연구소는 지난해 온라인 22만개 사이트를 대상으로 국내 9개 증권사에 대해 빅데이터를 분석한 결과, 이 같은 결과가 도출됐다고 밝혔다. 정보량의 경우 2019년과의 비교 분석도 실시했다.   연구소가 임의선정한 분석 대상 증권사는 '정보량 순'으로 △하나금융투자 △미래에셋대우 △NH투자증권 △키움증권 △삼성증권 △신한금융투자 △한국투자증권 △KB증권 △대신증권(대표 오익근) 등 이다.   분석 결과 온라인 게시물 수(총정보량)를 의미하는 '투자자 관심도'의 경우 2020년 '하나금융투자'는 총 30만2318건을 기록, 2019년 21만8533건에 비해 8만3785건 38.34% 늘어나며 1위를 차지했다.   이들 자료를 일일이 클릭한 결과 하나금융투자 정보량 중 '리포트'가 높은 비중을 차지했으며 투자자들은 이들 리포트를 블로그나 커뮤니티 등에 다시 게시하는 경우가 많았다.   정보량 2위는 지난해 총 29만1151건을 기록한 '미래에셋대우'였다. '미래에셋대우'는 지난 2019년 17만4672건에 비해서 11만6479건 66.68% 대폭 급증하며 증가량은 물론 증가율면에서 9개 주요 증권사중 가장 높았다.   2019년 26만3473건으로 가장 높은 관심도를 기록했던 'NH투자증권'은 지난해 2만3795건 9.03% 늘어 28만7268건을 보이는데 그치며 3위를 차지했다.   이어 '키움증권', '삼성증권', '신한금융투자', '한국투자증권', 'KB증권' 등이 20만~26만건 대를 기록하며 큰 차이를 보이지 않았으나 2019년 대비 증가량은 5.97%부터 50.72%까지 천차만별이었다.   관심도가 가장 낮은 '대신증권'은 지난해 총 19만7532건으로 2019년 13만8974건에 비해서는 5만8558건 42.14% 늘었다.   9개 증권사 중 가장 높은 투자자 호감도를 기록한 곳은 '하나금융투자'로 나타났다. 리포트 주목도가 높았던 '하나금융투자'는 긍정률에서 부정률을 뺀 값인 '순호감도'에서 41.94%를 기록, 1위를 차지했다.   정보량 상승률 1위였던 '미래에셋대우'가 28.94%로 순호감도에서 2위를 차지하며 '하나금융투자'와 함께 두 부문 모두 높은 지표를 보였다.   이어 '삼성증권' 25.78%, '한국투자증권' 25.36%, 'NH투자증권' 23.84%, '신한금융투자' 22.97%, '키움증권' 22.50%, 'KB증권' 21.41% 순이었다.   '대신증권'은 15.35%로 순호감도 역시 가장 낮았다"
 s = Splitter(text)
+# corpus = Splitter.constructCorpus(r"C:/comfinder/top50.csv", 30)
+# s = Splitter(text, corpus)
 # print(s.eoList)
 # print(s.posUMpairList)
 # print(s.partialEoList[125:145])
