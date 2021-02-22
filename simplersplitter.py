@@ -108,24 +108,24 @@ class Splitter:
             # if len(m.pos(i)) == 1 and m.pos(i)[0][1][0] == 'N':
             #     self.extnouns.remove(i)
 
-        # # 복합단어 추출 프로토타입
-        # self.CWlist = []
-        # for i in self.extnouns:
-        #     for j in self.extnouns:
-        #         # rawdoc으로 검색할 수도 있고 corpus로 검색할 수도 있음
-        #         if i+j in self.rawdoc: self.CWlist.append(i+j)
-        #         if i+' '+j in self.rawdoc: self.CWlist.append(i+' '+j)
-        # sentList = self.splitSentences(self.doc)
-        # for i in sentList:
-        #     for j in self.extnouns:
-        #         while j in i:
-        #             search = re.search(j, i)
-        #             l = i[search.start()-5:search.start]
-        #             l += i[search.end():search.end+5]
-        #             i.replace(j,'')
-        #             # l = j.split(i)
-        #             # print(' '.join(l))
-        #             # if len(l) >2: print(l)
+        # 복합단어 추출 프로토타입
+        self.CWlist = []
+        for i in self.extnouns:
+            for j in self.extnouns:
+                # rawdoc으로 검색할 수도 있고 corpus로 검색할 수도 있음
+                if i+j in self.rawdoc: self.CWlist.append(i+j)
+                if i+' '+j in self.rawdoc: self.CWlist.append(i+' '+j)
+
+        sentList = self.splitSentences(self.doc)
+        self.ndistance = 5
+        for i in self.extnouns:
+            for j in sentList:
+                while i in j:
+                    search = re.search(i, j)
+                    l = j[search.start()-self.ndistance:search.start()]
+                    l += j[search.end():search.end()+self.ndistance]
+                    j = j.replace(i, '', 1)
+                    print(l)
 
     # 텍스트 클렌징
     def clean_str(self, text):
