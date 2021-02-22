@@ -1,5 +1,6 @@
 # coding=UTF-8
 import re
+import pandas
 
 import sys
 platform = sys.platform
@@ -17,7 +18,7 @@ class Splitter:
         
         # 원문 문서에서 신조어 추출
         # 파이썬 버전 3.6
-        # 설치할 패키지: eunjeon
+        # 설치할 패키지: eunjeon, pandas
         # 차후 eunjeon에서 konlpy로 이전 예정
 
         # 리눅스 환경 mecab-ko-dic 설치과정
@@ -36,11 +37,34 @@ class Splitter:
         # doc = "원문전체 문자열"
         self.doc = self.clean_str(inputText)
         # corpus = 말뭉치. 데이터 형태 미정 (사용불가능, 비활성)
-        self.corpus = self.doc
+        if inputCorpus == None: self.corpus = self.doc
+        else: self.corpus = inputCorpus
 
         # eoList = ["어절1", "어절2", "어절3", ...] 한 문서 내 4자 이상의 어절 리스트, 숫자는 한 문자로 취급
+        # 괄호 속 문장 추출하여 문서에 추가, 현재 첫 번째 괄호 외 추출 안 되고 있음 (사용불가, 비활성)
+        # s = self.doc + ' '
+        # missed = ' '
+        # while s.count("(") > 0 and s.count(")") > 0:
+        #     p = s[s.find("(")+1:s.find(")")]
+        #     missed += p
+        # s += missed
+        # tempdoc = s
         l = self.doc.split(' ')
         self.eoList = [i for i in l if len(re.sub(r'[0-9]+', '-', i)) >= 4]
+
+        # 괄호가 포함된 어절 출력
+        missed = []
+        for i in self.eoList:
+            if i.count("(") > 0 and i.count(")") > 0:
+                missed.append(i[i.find("(")+1:i.find(")")])
+                continue
+            if i.count("(") > 0:
+                missed.append(i.split("(",1)[1])
+            if i.count(")") > 0:
+                missed.append(i[:-1])
+        parenthesisless = [x for x in self.eoList if  not '(' in x and not ')' in x] + [x for x in self.eoList if '(' in x and ')' in x]
+        parenthesisless += missed
+        self.eoList = parenthesisless
 
         # [LP, UM, RP] 형태가 가능한 모든 조합을 리스트로 구축
         self.posUMpairList = []
@@ -55,6 +79,43 @@ class Splitter:
         # for i in self.eoList:
         #     for j in self.eojeolPart(i):
         #         self.partialEoList.append(j)
+
+        # lplist: 모든 어절의 2자 이상의 LP부분 리스트: [["어절1LP1", "어절1LP2", ...], ["어절2LP1", "어절2LP2", ...], ...]
+        self.lplist = []
+        iter = self.eoList[:]
+        iter = list(dict.fromkeys(iter))
+        for i in iter:
+            if len(i) > 1: self.lplist.append(self.genLP(i))
+
+        # 디버깅용
+        # for i in self.genLP("마스턴투자운용의"):
+        #     print(i + " : " + str(self.corpus.count(i) / len(self.eoList)))
+        # for i in self.genLP("업무시설이다"):
+        #     print(i + " : " + str(self.corpus.count(i) / len(self.eoList)))
+
+        # 명사로 추정되는 문자열 리스트 추출 -> extnouns
+        self.extnouns = []
+        for i in self.lplist:
+            scores = []
+            finalscore = 0
+            chosen = ''
+            for j in range(len(i)):
+                scores.append(self.corpus.count(i[j]) / len(self.eoList))
+            for j in range(len(scores)):
+                if j >= len(scores)-1:
+                    chosen = i[j]
+                    finalscore = scores[j]
+                    break
+                # 예: 마스터투자운 -> 마스터투자운용 빈도수가 크게 차이가 안 날 경우 넘어가지만
+                # 마스터투자운용 -> 마스터투자운용은 빈도수가 크게 차이가 나기 때문에 그 직전에 명사로 채택
+                if scores[j] > scores[j+1] * 1.1:
+                    chosen = i[j]
+                    finalscore = scores[j]
+                    break
+                finalscore = scores[j]
+            # 빈도율이 4% 이상인 경우 채택
+            if finalscore > 0.04: self.extnouns.append(chosen)
+        self.extnouns = list(dict.fromkeys(self.extnouns))
 
         m = Mecab()
         # m = Mecab(dicpath='C:/mecab/mecab-ko-dic') # (사용불가능, 비활성)
@@ -111,7 +172,6 @@ class Splitter:
         pattern = r'([ㄱ-ㅎ|ㅏ-ㅣ|가-힣].[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]*)\.'
         text = re.sub(pattern=pattern, repl=r'\1 ', string=text)
 
-            
         text = re.sub(r'(^[ \t]+|[ \t]+(?=:))', '', text, flags=re.M)
         text = text.replace('\n', ' ')
         text = text.replace('\t', ' ')
@@ -141,13 +201,19 @@ class Splitter:
     # 한 어절에 대해서 모든 가능한 부분어절 나열 리스트 (현재 미사용)
     def eojeolPart(self, eojeol):
         out = []
-        m = Mecab()
-        # m = Mecab(dicpath='C:/mecab/mecab-ko-dic') # (사용불가능, 비활성)
-        # m = Mecab(dicpath='/usr/local/lib/mecab/dic/mecab-ko-dic') # (사용불가능, 비활성)
         if eojeol[-1] == '.': eojeol = eojeol[:-1]
         for i in range(len(eojeol)):
             for j in range(len(eojeol)-i):
                 out.append(eojeol[i:j+i+1])
+        return out
+
+    # 한 어절에 대해서 모든 2자 이상의 LP 나열 리스트 (현재 미사용)
+    def genLP(self, eojeol):
+        # 괄호 뒤에 오는 어절도 인풋으로 받을 방법 필요?
+        out = []
+        if eojeol[-1] == '.': eojeol = eojeol[:-1]
+        for i in range(2, len(eojeol)+1):
+            out.append(eojeol[:i])
         return out
 
     # 분리된 형태소를 조합하여 나올 수 있는 모든 단어 어절 리스트 (현재 미사용)
@@ -234,6 +300,85 @@ class Splitter:
                     return True
         return False
 
+    # 클래스의 입력변수를 구축 (정적 메소드) 
+    def sortInput(inputPath, index):
+        # 입력변수가 50자 이상일 경우 스트링으로 취급
+        if len(inputPath) >= 50: return inputPath
+        # 입력된 파일이 CSV가 아닐 경우 TXT로 취급하여 1회 실행 유도
+        if inputPath[-4:] != ".csv":
+            f = open(inputPath, 'r', encoding='utf8')
+            out = f.read()
+            f.close()
+            return out
+        data = pandas.read_csv(inputPath, encoding='utf8')
+        # NEWS_BODY 열이 없을 경우
+        if "NEWS_BODY" not in data.columns:
+            l = data.loc[index].tolist()
+            l = [str(i) for i in l]
+            long = max(l, key=len)
+            return long
+        # NEWS_BODY 열만 불러오기
+        return data.at[index, 'NEWS_BODY']
+
+    # 입력된 CSV 파일의 행의 갯수 (정적 메소드) 
+    def totalDocs(inputPath):
+        # 입력된 파일이 CSV가 아닐 경우 TXT로 취급하여 1회 실행 유도
+        if inputPath[-4:] != ".csv": return 1
+        return len(pandas.read_csv(inputPath))
+
+    # 입력된 CSV 파일로 말뭉치 구축 (정적 메소드) 
+    def constructCorpus(inputPath, index):
+        # CSV가 아닐 경우 TXT로 취급
+        # index는 입력된 CSV의 파일 행의 갯수
+        if inputPath[-4:] != ".csv":
+            f = open(inputPath, 'r', encoding='utf8')
+            out = f.read()
+            f.close()
+            return out
+        data = pandas.read_csv(inputPath, encoding='utf8')
+        out = ""
+        # NEWS_BODY 열이 없을 경우
+        if "NEWS_BODY" not in data.columns:
+            # for i in range(len(pandas.read_csv(inputPath))):
+            for i in range(index):
+                l = data.loc[i].tolist()
+                l = [str(i) for i in l]
+                long = max(l, key=len)
+                out += long + ' '
+            return out
+        # NEWS_BODY 열만 불러오기
+        # for i in range(len(pandas.read_csv(inputPath))):
+        for i in range(index):
+            out += data.at[i, 'NEWS_BODY'] + ' '
+        return out
+
+# # <--- CLI 전용 ---> (사용가능, 비활성)
+# # sys.argv[1]: 입력파일
+# # sys.argv[2]: 출력파일
+# if __name__ == "__main__":
+#     # 출력 파일 초기화
+#     f = open(sys.argv[2], 'w', encoding='utf8')
+#     f.write("")
+#     f.close()
+
+#     # CSV파일의 행 수 만큼 코드 실행
+#     iterNum = Splitter.totalDocs(sys.argv[1])
+#     # CSV파일로부터 말뭉치 구축
+#     corpus = Splitter.constructCorpus(sys.argv[1], iterNum)
+#     lst = []
+#     for i in range(iterNum):
+#         s = Splitter(sys.argv[1], corpus)
+#         if len(s.candidates) > 0:
+#             lst.append(s.candidates)
+#             print(s.candidates)
+
+#     final = list(dict.fromkeys([item for sublist in lst for item in sublist]))
+#     f = open(sys.argv[2], 'w', encoding='utf8')
+#     f.write('\n'.join(final))
+#     f.close()
+
+# <--- IDE 전용 ---> (활성)
+# 입력 선언
 # path = "C:/comfinder/inputDoc.txt"
 # text = open(path, 'rt', encoding='utf8').read().replace('\n',' ')
 text = r"11월 입찰 예정서울시 구로구 구로동에 위치한 `센터포인트 웨스트(구 서부금융센터)` 마스턴투자운용은 서울시 구로구 구로동 '센터포인트 웨스트(옛 서부금융센터)' 매각에 속도를 낸다.27일 관련업계에 따르면 마스턴투자운용은 지난달 삼정KPMG·폴스트먼앤코 아시아 컨소시엄을 매각 주관사로 선정한 후 현재 잠재 매수자에게 투자설명서(IM)를 배포하고 있는 단계다. 입찰은 11월 중순 예정이다.2007년 12월 준공된 '센터포인트 웨스트'는 지하 7층~지상 40층, 연면적 9만5000여㎡(약 2만8000평) 규모의 프라임급 오피스다. 판매동(테크노마트)과 사무동으로 이뤄졌다. 마스턴투자운용의 소유분은 사무동 지하 1층부터 지상 40층이다. 지하 1층과 지상 10층은 판매시설이고 나머지는 업무시설이다. 주요 임차인으로는 삼성카드, 우리카드, 삼성화재, 교보생명, 한화생명 등이 있다. 임차인의 대부분이 신용도가 높은 대기업 계열사 혹은 우량한 금융 및 보험사 등이다.'센터포인트 웨스트'는 서울 서남부 신도림 권역 내 최고층 빌딩으로 초광역 교통 연결성을 보유한 오피스 입지를 갖췄다고 평가받는다. 최근 신도림·영등포 권역은 타임스퀘어, 영시티, 디큐브시티 등 프라임급 오피스들과 함께 형성된 신흥 업무 권역으로 주목받고 있다고 회사 측은 설명했다.마스턴투자운용 측은   2021년 1분기를 클로징 예상 시점으로 잡고 있다  며   신도림 권역의 랜드마크로서 임대 수요가 꾸준해 안정적인 배당이 가능한 투자상품이 될 것  이라고 설명했다.한편 마스턴투자운용은 지난 2017년 말 신한BNP파리바자산운용으로부터 당시 '서부금융센터'를 약 3200억원에 사들였으며 이후 '센터포인트 웨스트'로 이름을 바꿨다.[김규리 기자 wizkim61@mkinternet.com]"
@@ -241,4 +386,6 @@ s = Splitter(text)
 # print(s.eoList)
 # print(s.posUMpairList)
 # print(s.partialEoList[125:145])
-# print(s.candidates)
+print(s.candidates)
+# print(s.lplist)
+# print(s.extnouns)
