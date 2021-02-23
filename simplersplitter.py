@@ -109,23 +109,29 @@ class Splitter:
             # if len(m.pos(i)) == 1 and m.pos(i)[0][1][0] == 'N':
             #     self.extnouns.remove(i)
 
-        # 단어 주변 문자열을 수집
-        self.surroundings = []
-        sentList = self.splitSentences(self.doc)
-        self.ndistance = 10
+        # # 단어 주변 문자열을 수집
+        # self.surroundings = []
+        # sentList = self.splitSentences(self.doc)
+        # self.ndistance = 10
+        # for i in self.extnouns:
+        #     addedstr = ""
+        #     for j in sentList:
+        #         temp = j
+        #         while i in temp:
+        #             search = re.search(i, temp)
+        #             if (search.start()-self.ndistance < 0): l = temp[0:search.start()]
+        #             else: l = temp[search.start()-self.ndistance:search.start()]
+        #             l += temp[search.end():search.end()+self.ndistance]
+        #             temp = temp.replace(i, '', 1)
+        #             addedstr += l
+        #     self.surroundings.append(addedstr)
+        # self.conndict = dict(zip(self.extnouns, self.surroundings))
+
+        self.conndict = {}
+        ndist = 10
         for i in self.extnouns:
-            addedstr = ""
-            for j in sentList:
-                temp = j
-                while i in temp:
-                    search = re.search(i, temp)
-                    if (search.start()-self.ndistance < 0): l = temp[0:search.start()]
-                    else: l = temp[search.start()-self.ndistance:search.start()]
-                    l += temp[search.end():search.end()+self.ndistance]
-                    temp = temp.replace(i, '', 1)
-                    addedstr += l
-            self.surroundings.append(addedstr)
-        self.conndict = dict(zip(self.extnouns, self.surroundings))
+            self.conndict[i] = self.wordMappingOld(i, self.extnouns, self.rawdoc)
+            # self.conndict[i] = self.wordMapping(i, self.extnouns, self.rawdoc, ndist)
 
         # 복합단어 추출 프로토타입
         self.pairList = []
@@ -137,10 +143,32 @@ class Splitter:
         cwlist = []
         for i in self.pairList:
             cwlist.append(' '.join(i))
+
         pmiList = []
         for i in self.pairList:
-            pmiList.append(self.getPMI(i, self.wTotal, self.rawdoc))        
-        self.cwdict = dict(zip(cwlist, pmiList))
+            pmiList.append(self.getPMI(i, self.wTotal, self.rawdoc))
+
+        # PMI, TR 산출
+        self.pmidict = dict(zip(cwlist, pmiList))
+        self.trdict = self.calculateTextRank(self.extnouns, self.conndict, 16)
+
+        trpmiList = []
+        for i in self.pairList:
+            trpmi = 1
+            for j in i:
+                trpmi *= self.trdict[j]
+            trpmi **= 1/len(i)
+            trpmi *= self.pmidict[' '.join(i)]
+            trpmiList.append(trpmi)
+        self.trpmidict = dict(zip(cwlist, trpmiList))
+
+        # 기존에 등록되어있는 명사 제외
+        # temp = self.extnouns[:]
+        # for i in temp:
+        #     if len(m.pos(i)) == 1 and m.pos(i)[0][1][0] == 'N':
+        #         self.extnouns.remove(i)
+        
+        # print(self.detectConnection(self.pairList))
 
     # 텍스트 클렌징
     def clean_str(self, text):
@@ -168,7 +196,7 @@ class Splitter:
         text = text.replace('\r', ' ')
         text = re.sub('[0-9]+[개층위건만억조원년월일]', '', text)
         text = re.sub('[0-9]+.[0-9]+%', '', text)
-        text = re.sub('\b[0-9]+\b\s*', '', text)
+        # text = re.sub('\b[0-9]+\b\s*', '', text)
         text = re.sub(' +', ' ', text)
         text = text.replace('()', ' ')
         text = text.upper()
@@ -192,10 +220,6 @@ class Splitter:
             out.append(eojeol[:i])
         return out
 
-    # 클렌징된 텍스트를 문장 단위로 분리
-    def splitSentences(self, doc):
-        return doc.split('. ')
-
     # 리스트 형태의 복합단어를 문서 전체에서 검색
     def searchSpaceless(self, wordpair, target):
         # 본문에서 띄어쓰기를 제외한 채로 검색할 경우:
@@ -204,7 +228,7 @@ class Splitter:
     # 리스트 형태의 복합단어를 문서 전체에 대해서 PMI 계산
     def getPMI(self, wordpair, wordcount, target):
         # 분자 = p(w1, w2, ...)
-        numerator = self.searchSpaceless(wordpair, target) / wordcount
+        numerator = target.replace(' ','').count(''.join(wordpair)) / wordcount
         if numerator == 0: return 0
         # 분모 = p(w1) * p(w2) * ...
         denominator = 1
@@ -215,11 +239,121 @@ class Splitter:
         pmi = math.log(numerator / denominator)
         return pmi
 
-text = r"11월 입찰 예정 서울시 구로구 구로동에 위치한 `센터포인트 웨스트(구 서부금융센터)` 마스턴투자운용은 서울시 구로구 구로동 '센터포인트 웨스트(옛 서부금융센터)' 매각에 속도를 낸다.27일 관련업계에 따르면 마스턴투자운용은 지난달 삼정KPMG·폴스트먼앤코 아시아 컨소시엄을 매각 주관사로 선정한 후 현재 잠재 매수자에게 투자설명서(IM)를 배포하고 있는 단계다. 입찰은 11월 중순 예정이다.2007년 12월 준공된 '센터포인트 웨스트'는 지하 7층~지상 40층, 연면적 9만5000여㎡(약 2만8000평) 규모의 프라임급 오피스다. 판매동(테크노마트)과 사무동으로 이뤄졌다. 마스턴투자운용의 소유분은 사무동 지하 1층부터 지상 40층이다. 지하 1층과 지상 10층은 판매시설이고 나머지는 업무시설이다. 주요 임차인으로는 삼성카드, 우리카드, 삼성화재, 교보생명, 한화생명 등이 있다. 임차인의 대부분이 신용도가 높은 대기업 계열사 혹은 우량한 금융 및 보험사 등이다.'센터포인트 웨스트'는 서울 서남부 신도림 권역 내 최고층 빌딩으로 초광역 교통 연결성을 보유한 오피스 입지를 갖췄다고 평가받는다. 최근 신도림·영등포 권역은 타임스퀘어, 영시티, 디큐브시티 등 프라임급 오피스들과 함께 형성된 신흥 업무 권역으로 주목받고 있다고 회사 측은 설명했다.마스턴투자운용 측은   2021년 1분기를 클로징 예상 시점으로 잡고 있다  며   신도림 권역의 랜드마크로서 임대 수요가 꾸준해 안정적인 배당이 가능한 투자상품이 될 것  이라고 설명했다.한편 마스턴투자운용은 지난 2017년 말 신한BNP파리바자산운용으로부터 당시 '서부금융센터'를 약 3200억원에 사들였으며 이후 '센터포인트 웨스트'로 이름을 바꿨다.[김규리 기자 wizkim61@mkinternet.com]"
-# text = r"글로벌빅데이터연구소,?약?22만개?사이트?대상?9개?증권사?빅데이터?분석투자자?관심도?1위는?하나금융투자,?관심도?상승률?1위는?미래에셋대우  [파이낸셜뉴스]지난해 국내 주요 증권사에 대한 투자자 관심도를 조사한 결과 '하나금융투자'가 가장 높았던 것으로 나타났다. 같은 기간 관심도 상승률은 '미래에셋대우'가 가장 높았다.   5일 글로벌빅데이터연구소는 지난해 온라인 22만개 사이트를 대상으로 국내 9개 증권사에 대해 빅데이터를 분석한 결과, 이 같은 결과가 도출됐다고 밝혔다. 정보량의 경우 2019년과의 비교 분석도 실시했다.   연구소가 임의선정한 분석 대상 증권사는 '정보량 순'으로 △하나금융투자 △미래에셋대우 △NH투자증권 △키움증권 △삼성증권 △신한금융투자 △한국투자증권 △KB증권 △대신증권(대표 오익근) 등 이다.   분석 결과 온라인 게시물 수(총정보량)를 의미하는 '투자자 관심도'의 경우 2020년 '하나금융투자'는 총 30만2318건을 기록, 2019년 21만8533건에 비해 8만3785건 38.34% 늘어나며 1위를 차지했다.   이들 자료를 일일이 클릭한 결과 하나금융투자 정보량 중 '리포트'가 높은 비중을 차지했으며 투자자들은 이들 리포트를 블로그나 커뮤니티 등에 다시 게시하는 경우가 많았다.   정보량 2위는 지난해 총 29만1151건을 기록한 '미래에셋대우'였다. '미래에셋대우'는 지난 2019년 17만4672건에 비해서 11만6479건 66.68% 대폭 급증하며 증가량은 물론 증가율면에서 9개 주요 증권사중 가장 높았다.   2019년 26만3473건으로 가장 높은 관심도를 기록했던 'NH투자증권'은 지난해 2만3795건 9.03% 늘어 28만7268건을 보이는데 그치며 3위를 차지했다.   이어 '키움증권', '삼성증권', '신한금융투자', '한국투자증권', 'KB증권' 등이 20만~26만건 대를 기록하며 큰 차이를 보이지 않았으나 2019년 대비 증가량은 5.97%부터 50.72%까지 천차만별이었다.   관심도가 가장 낮은 '대신증권'은 지난해 총 19만7532건으로 2019년 13만8974건에 비해서는 5만8558건 42.14% 늘었다.   9개 증권사 중 가장 높은 투자자 호감도를 기록한 곳은 '하나금융투자'로 나타났다. 리포트 주목도가 높았던 '하나금융투자'는 긍정률에서 부정률을 뺀 값인 '순호감도'에서 41.94%를 기록, 1위를 차지했다.   정보량 상승률 1위였던 '미래에셋대우'가 28.94%로 순호감도에서 2위를 차지하며 '하나금융투자'와 함께 두 부문 모두 높은 지표를 보였다.   이어 '삼성증권' 25.78%, '한국투자증권' 25.36%, 'NH투자증권' 23.84%, '신한금융투자' 22.97%, '키움증권' 22.50%, 'KB증권' 21.41% 순이었다.   '대신증권'은 15.35%로 순호감도 역시 가장 낮았다"
+    # 단어에 연결된 명사를 리스트로 출력 (unweighted, directed)
+    def wordMapping(self, word, nounlist, doc, ndist):
+        out = []
+        sentList = doc.split('. ')
+        # 문장당 해당 단어 주위에 등장하는 문자열 구축
+        surrounding = ''
+        for i in sentList:
+            temp = i
+            while word in temp:
+                search = re.search(word, temp)
+                if (search.start()-ndist < 0): l = temp[0:search.start()]
+                else: l = temp[search.start()-ndist:search.start()]
+                l += temp[search.end():search.end()+ndist]
+                temp = temp.replace(word, '', 1)
+                surrounding += l
+        # 구축된 문자열에 등장하는 모든 명사 리스트 구축
+        for i in nounlist:
+            if i in surrounding:
+                out.append(i)
+        if word in out: out.remove(word)
+        return out
+
+    # 단어에 연결된 명사를 리스트로 출력 (옛날 방식, weighted, undirected)
+    def wordMappingOld(self, word, nounlist, doc):
+        out = []
+        sentList = doc.split('. ')
+        # 같은 문장 안에 
+        for i in sentList:
+            temp = i
+            for j in nounlist:
+                while word in temp and j in temp:
+                    out.append(j)
+                    temp = temp.replace(j, '', 1)
+        out.remove(word)
+        return out
+
+    def calculateTextRank(self, nounlist, conndict, iteration):
+        values = [1 / len(nounlist)] * len(nounlist)
+        newValues = [0] * len(nounlist)
+        node = dict(zip(nounlist, values))
+
+        for _ in range(iteration):
+            for i in range(len(nounlist)):
+                key = nounlist[i]
+                if conndict[key] == []:
+                    newValues[i] = values[i]
+                    continue
+                for j in conndict[key]:
+                    # TR을 간선을 통해 분배하는 방식:
+                    newValues[nounlist.index(j)] += node[key] / len(conndict[key])
+            values = newValues
+            newValues = [0] * len(nounlist)
+
+            node = dict(zip(nounlist, values))
+
+        # 제동변수 계산
+        df = 0.85
+        for i in range(0, len(values)):
+            values[i] = (1-df) + df * values[i]
+        node = dict(zip(nounlist, values))
+        return node
+
+    # 단어페어 리스트에서 연결고리가 있을 가능성이 있는 경우를 모두 발견
+    def detectConnection(self, cwlist):
+        # 앞뒤 잘린 리스트 구축
+        frontshortened = []
+        backshortened = []
+        for i in cwlist:
+            frontshortened.append(i[1:])
+        for i in cwlist:
+            backshortened.append(i[:-1])
+        
+        # 사전작업
+        connectionmap = {}
+        for i in range(len(cwlist)):
+            connectionmap[i] = []
+
+        for i in range(len(cwlist)):
+            for j in range(len(cwlist)):
+                if frontshortened[i] == backshortened[j]: connectionmap[i].append(j)
+        return connectionmap
+
+    # 명사 리스트와 원문에서 flist 추출
+    def extractFList(self, nounlist, doc):
+        out = []
+        templist = []
+        sentList = doc.split('. ')
+        for i in sentList:
+            temp = i
+            sublist = []
+            for j in nounlist:
+                while j in temp:
+                    index = re.search(j, temp).start()
+                    temp = temp.replace(j, '', 1)
+                    sublist.append([j, index])
+            templist.append(sublist)
+        
+        for i in templist:
+            sublist = []
+            l = sorted(i, key=lambda x: x[1])
+            for j in l: sublist.append(j[0])
+            out.append(sublist)
+        return out
+
+# text = r"11월 입찰 예정 서울시 구로구 구로동에 위치한 `센터포인트 웨스트(구 서부금융센터)` 마스턴투자운용은 서울시 구로구 구로동 '센터포인트 웨스트(옛 서부금융센터)' 매각에 속도를 낸다.27일 관련업계에 따르면 마스턴투자운용은 지난달 삼정KPMG·폴스트먼앤코 아시아 컨소시엄을 매각 주관사로 선정한 후 현재 잠재 매수자에게 투자설명서(IM)를 배포하고 있는 단계다. 입찰은 11월 중순 예정이다.2007년 12월 준공된 '센터포인트 웨스트'는 지하 7층~지상 40층, 연면적 9만5000여㎡(약 2만8000평) 규모의 프라임급 오피스다. 판매동(테크노마트)과 사무동으로 이뤄졌다. 마스턴투자운용의 소유분은 사무동 지하 1층부터 지상 40층이다. 지하 1층과 지상 10층은 판매시설이고 나머지는 업무시설이다. 주요 임차인으로는 삼성카드, 우리카드, 삼성화재, 교보생명, 한화생명 등이 있다. 임차인의 대부분이 신용도가 높은 대기업 계열사 혹은 우량한 금융 및 보험사 등이다.'센터포인트 웨스트'는 서울 서남부 신도림 권역 내 최고층 빌딩으로 초광역 교통 연결성을 보유한 오피스 입지를 갖췄다고 평가받는다. 최근 신도림·영등포 권역은 타임스퀘어, 영시티, 디큐브시티 등 프라임급 오피스들과 함께 형성된 신흥 업무 권역으로 주목받고 있다고 회사 측은 설명했다.마스턴투자운용 측은   2021년 1분기를 클로징 예상 시점으로 잡고 있다  며   신도림 권역의 랜드마크로서 임대 수요가 꾸준해 안정적인 배당이 가능한 투자상품이 될 것  이라고 설명했다.한편 마스턴투자운용은 지난 2017년 말 신한BNP파리바자산운용으로부터 당시 '서부금융센터'를 약 3200억원에 사들였으며 이후 '센터포인트 웨스트'로 이름을 바꿨다.[김규리 기자 wizkim61@mkinternet.com]"
+text = r"글로벌빅데이터연구소,?약?22만개?사이트?대상?9개?증권사?빅데이터?분석투자자?관심도?1위는?하나금융투자,?관심도?상승률?1위는?미래에셋대우  [파이낸셜뉴스]지난해 국내 주요 증권사에 대한 투자자 관심도를 조사한 결과 '하나금융투자'가 가장 높았던 것으로 나타났다. 같은 기간 관심도 상승률은 '미래에셋대우'가 가장 높았다.   5일 글로벌빅데이터연구소는 지난해 온라인 22만개 사이트를 대상으로 국내 9개 증권사에 대해 빅데이터를 분석한 결과, 이 같은 결과가 도출됐다고 밝혔다. 정보량의 경우 2019년과의 비교 분석도 실시했다.   연구소가 임의선정한 분석 대상 증권사는 '정보량 순'으로 △하나금융투자 △미래에셋대우 △NH투자증권 △키움증권 △삼성증권 △신한금융투자 △한국투자증권 △KB증권 △대신증권(대표 오익근) 등 이다.   분석 결과 온라인 게시물 수(총정보량)를 의미하는 '투자자 관심도'의 경우 2020년 '하나금융투자'는 총 30만2318건을 기록, 2019년 21만8533건에 비해 8만3785건 38.34% 늘어나며 1위를 차지했다.   이들 자료를 일일이 클릭한 결과 하나금융투자 정보량 중 '리포트'가 높은 비중을 차지했으며 투자자들은 이들 리포트를 블로그나 커뮤니티 등에 다시 게시하는 경우가 많았다.   정보량 2위는 지난해 총 29만1151건을 기록한 '미래에셋대우'였다. '미래에셋대우'는 지난 2019년 17만4672건에 비해서 11만6479건 66.68% 대폭 급증하며 증가량은 물론 증가율면에서 9개 주요 증권사중 가장 높았다.   2019년 26만3473건으로 가장 높은 관심도를 기록했던 'NH투자증권'은 지난해 2만3795건 9.03% 늘어 28만7268건을 보이는데 그치며 3위를 차지했다.   이어 '키움증권', '삼성증권', '신한금융투자', '한국투자증권', 'KB증권' 등이 20만~26만건 대를 기록하며 큰 차이를 보이지 않았으나 2019년 대비 증가량은 5.97%부터 50.72%까지 천차만별이었다.   관심도가 가장 낮은 '대신증권'은 지난해 총 19만7532건으로 2019년 13만8974건에 비해서는 5만8558건 42.14% 늘었다.   9개 증권사 중 가장 높은 투자자 호감도를 기록한 곳은 '하나금융투자'로 나타났다. 리포트 주목도가 높았던 '하나금융투자'는 긍정률에서 부정률을 뺀 값인 '순호감도'에서 41.94%를 기록, 1위를 차지했다.   정보량 상승률 1위였던 '미래에셋대우'가 28.94%로 순호감도에서 2위를 차지하며 '하나금융투자'와 함께 두 부문 모두 높은 지표를 보였다.   이어 '삼성증권' 25.78%, '한국투자증권' 25.36%, 'NH투자증권' 23.84%, '신한금융투자' 22.97%, '키움증권' 22.50%, 'KB증권' 21.41% 순이었다.   '대신증권'은 15.35%로 순호감도 역시 가장 낮았다"
 # text = r"우리나라의 1인가구가 매년 증가세를 보이는 가운데 지난해에는 600만을 넘어섰다. 가구 분포 역시 1인 가구는 30.2%를 차지해 2인 가구(27.8%), 3인 가구(20.7%), 4인 이상(21.2%)를 크게 앞지르며 대세를 이루고 있다. 특히 대전지역의 1인 가구 비율은 33.7%로 전년(32.6%) 대비 1.1% 증가했고 전국 1인 가구 비율보다는 3.5%가 더 높은 것으로 조사됐다. 향후 5년간 1인 가구 수가 매년 15만가구씩 증가할 것이라는 예측이 나오면서 유통업계에서는 1인 가구를 위한 소포장, 1인 메뉴 등을 출시하는데 열을 올리고 있다. 이러한 트렌드에 발맞춰 대전지역 롯데마트 3개 지점에서는 ‘한끼밥상’이라는 테마로 소포장 전문 코너를 만들어 운영 중이다. 농림축산식품부의 GAP(우수관리인증) 농산물을 990원부터 만나볼 수 있어 소비자로부터 좋은 반응을 보이고 있다. 실제로 대전지역 롯데마트 3개 지점(대덕점, 노은점, 서대전점)의 2020년 신선식품 中 소용량 상품군의 매출은 전년대비 12% 가까이 증가했다. 롯데마트 충청호남영업부문 배효권 부문장은 “1인 가구가 유통시장의 새로운 소비 주체로 떠오르면서 1~2인 가구를 겨냥한 소포장, 가정간편식 등과 같은 시장의 규모가 급성장할 것으로 예상된다”며 “롯데마트에서는 지역의 생산자와 손잡고 해당 상품군을 지속적으로 확대∙강화하는데 최선을 다하겠다”고 말했다."
 s = Splitter(text)
-# print(s.extnouns)
-# print(s.surroundings)
+print(s.extnouns)
 # print(s.pairList)
-print(s.cwdict)
+# print(s.conndict)
+# print(s.pmidict)
+# print(s.trdict)
+# print(sorted(s.trdict, key=s.trdict.get, reverse=True)[:10])
+# print(sum(s.trdict.values()))
+# print(s.trpmidict)
+# print(s.extractFList(s.extnouns, s.rawdoc))
+# print(len(s.extractFList(s.extnouns, s.rawdoc)))
