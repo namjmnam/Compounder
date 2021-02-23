@@ -65,6 +65,7 @@ class Splitter:
         for i in range(len(self.eoList)):
             for j in self.splitEojeol(self.eoList[i]):
                 # RP가 알려진 단어로 이루어져있는지 확인(확인된 경우 KRP라고 부름) 후 등록
+                # if self.isAfterNoun(j[2]) and len(j[1]) > 1:
                 if self.isKnown(j[2]):
                     self.posUMpairList.append(j)
 
@@ -91,7 +92,6 @@ class Splitter:
                 # 현재는 단순히 말뭉치에 띄어쓰기+단어가 검색된 갯수만 찾지만 본래 어절의 좌측부분만 검색하도록 해야 함
                 # 문제점1: 말뭉치는 클렌징이 되어있지 않음
                 # 문제점2: 기존에 이미 발견된 명사를 제외한 말뭉치에서 검색해야 함
-                # 문제점3: corpus의 단어 수로 나눠야 함
                 scores.append(self.corpus.count(' ' + i[j]) / self.wTotal)
             for j in range(len(scores)):
                 if j >= len(scores)-1:
@@ -121,6 +121,9 @@ class Splitter:
             if len(i[0]) > 0 and m.pos(i[0][-1])[0][1][0] == 'S' and m.pos(i[1][0])[0][1][0] == 'S': temp.remove(i)
             # RP가 빈 문자열이 아니고 UM의 마지막 글자와 RP의 첫 글자가 모두 한글이외 문자일 경우 후보에서 제거
             elif len(i[2]) > 0 and m.pos(i[1][-1])[0][1][0] == 'S' and m.pos(i[2][0])[0][1][0] == 'S': temp.remove(i)
+            # # UM에 괄호가 한 쪽만 포함된 경우 제거
+            elif '(' in i[1] and ')' not in i[1]: temp.remove(i)
+            elif ')' in i[1] and '(' not in i[1]: temp.remove(i)
         # 결과물은 LP+UM+KRP의 리스트
         self.posUMpairList = temp
 
@@ -133,7 +136,6 @@ class Splitter:
             # KRP가 비어있지 않은 경우: UM+KRP[0](KRP의 첫 형태소)를 말뭉치에 대해 검색하여 2번 이상 등장할 경우 LP+UM 등록
             elif i[2] != '' and self.corpus.count(i[1]+m.morphs(i[2])[0]) >= 2:
                 self.candidates.append(i[0]+i[1])
-        self.candidates = list(dict.fromkeys(self.candidates))
 
         # 서로를 포함하는 어절 빈도수 기준으로 정리
         temp = []
@@ -145,6 +147,7 @@ class Splitter:
             else: temp.append(self.candidates[i])
         if self.wordFreq(self.candidates[-2], self.corpus) * 0.9 < self.wordFreq(self.candidates[-1], self.corpus): temp.append(self.candidates[-1])
         self.candidates = temp
+        self.candidates = list(dict.fromkeys(self.candidates))
 
         # 여기서 Mecab은 기존에 등록된 명사인지 아닌지 판단하기 위해 사용
         # 기존에 등록된 명사 제외
@@ -404,6 +407,7 @@ s = Splitter(text)
 # s = Splitter(text, corpus)
 # print(s.eoList)
 # print(s.posUMpairList)
+# print(s.posUMpairList[-35:-5])
 # print(s.partialEoList[125:145])
 print(s.candidates)
 # print(s.lplist)
