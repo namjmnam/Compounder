@@ -21,6 +21,8 @@ pip install pandas
 Looks for compound words from a csv file, txt file or document string and saves it as a single txt file or prints results on command line
 * wordsplitter.py
 Searches for new words in a string of a document. Under development
+* simplersplitter.py
+Attempted to create a compound word generator independent from Mecab. Under development
 
 ## Test Files (input)
 * inputDoc.txt
