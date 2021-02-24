@@ -20,9 +20,9 @@ pip install pandas
 * compounder.py
 Looks for compound words from a csv file, txt file or document string and saves it as a single txt file or prints results on command line
 * wordsplitter.py
-Searches for new words in a string of a document. Under development
+Searches for possible new words in a string of a document.
 * simplersplitter.py
-Attempted to create a compound word generator independent from Mecab. Under development
+Attempts to generate a list of nouns and compound words composed of the found nouns independent from Mecab.
 
 ## Test Files (input)
 * inputDoc.txt
