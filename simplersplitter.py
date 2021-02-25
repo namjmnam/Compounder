@@ -103,9 +103,17 @@ class Splitter:
         # 명사로 추정되는 문자열 리스트 추출 -> extnouns
         self.extnouns = []
         for i in self.lplist:
+
+            # # 방식1
+            # scores = []
+            # finalscore = 0
+            # chosen = ''
+
+            # 방식2
             scores = []
-            finalscore = 0
-            chosen = ''
+            finalscore = []
+            chosen = []            
+
             for j in range(len(i)):
                 # 문제점1: 말뭉치는 클렌징이 되어있지 않음
                 # 문제점2: 기존에 이미 발견된 명사를 제외한 말뭉치에서 검색해야 함
@@ -135,22 +143,40 @@ class Splitter:
 
                 # 빈도율 계산 안 하고 빈도수만 계산
                 scores.append(wordcount)
+
+            # 방식1
+            # for j in range(len(scores)):
+            #     if j >= len(scores)-1:
+            #         chosen = i[j]
+            #         finalscore = scores[j]
+            #         break
+            #     # 예: 마스터투자운 -> 마스터투자운용 빈도수가 크게 차이가 안 날 경우 넘어가지만
+            #     # 마스터투자운용 -> 마스터투자운용은 빈도수가 크게 차이가 나기 때문에 그 직전에 명사로 채택
+            #     if scores[j] > scores[j+1] * 1.1:
+            #         chosen = i[j]
+            #         finalscore = scores[j]
+            #         break
+            #     finalscore = scores[j]
+            # # 빈도율이 2/어절수 이상인 경우 채택
+            # # if finalscore >= 2 / self.wTotal: self.extnouns.append(chosen)
+            # # 빈도율 계산 안 하고 빈도수만 계산 (2번 이상 등장)
+            # if finalscore >= 2: self.extnouns.append(chosen)
+
+
+            # 방식2
             for j in range(len(scores)):
                 if j >= len(scores)-1:
-                    chosen = i[j]
-                    finalscore = scores[j]
+                    chosen.append(i[j])
+                    finalscore.append(scores[j])
                     break
                 # 예: 마스터투자운 -> 마스터투자운용 빈도수가 크게 차이가 안 날 경우 넘어가지만
                 # 마스터투자운용 -> 마스터투자운용은 빈도수가 크게 차이가 나기 때문에 그 직전에 명사로 채택
                 if scores[j] > scores[j+1] * 1.1:
-                    chosen = i[j]
-                    finalscore = scores[j]
-                    break
-                finalscore = scores[j]
-            # 빈도율이 2/어절수 이상인 경우 채택
-            # if finalscore >= 2 / self.wTotal: self.extnouns.append(chosen)
-            # 빈도율 계산 안 하고 빈도수만 계산 (2번 이상 등장)
-            if finalscore >= 2: self.extnouns.append(chosen)
+                    chosen.append(i[j])
+                    finalscore.append(scores[j])
+            for k in range(len(chosen)):
+                if finalscore[k] >= 2: self.extnouns.append(chosen[k])
+
         self.extnouns = list(dict.fromkeys(self.extnouns))
 
         # # 괄호가 한 쪽만 포함된 문자열 제거: regex가 에러를 냄
@@ -557,7 +583,13 @@ def totalDocs(inputPath):
 
 # # <--- CLI 전용 ---> (사용가능, 비활성)
 # # sys.argv[1]: 입력파일
-# if __name__ == "__main__":
+# # sys.argv[2]: 출력파일
+# if __name__ == "__main__":    
+#     # 출력 파일 초기화
+#     f = open(sys.argv[2], 'w', encoding='utf8')
+#     f.write("")
+#     f.close()
+
 #     # CSV파일의 행 수 만큼 코드 실행
 #     out = []
 #     iterNum = totalDocs(sys.argv[1])
@@ -567,12 +599,12 @@ def totalDocs(inputPath):
 #         s = Splitter(text)
 #         out += s.extnouns
 #         out += [i for i in list(s.trpmidictnew.keys()) if s.trpmidictnew[i] >= 0.3]
-#         out += [i for i in list(s.trpmidictold.keys()) if s.trpmidictold[i] >= 0.3]        
-#         print(s.extnouns)
-#         print([i for i in list(s.trpmidictnew.keys()) if s.trpmidictnew[i] >= 0.3])
-#         print([i for i in list(s.trpmidictold.keys()) if s.trpmidictold[i] >= 0.3])
+#         out += [i for i in list(s.trpmidictold.keys()) if s.trpmidictold[i] >= 0.3]
+
 #     out = list(dict.fromkeys(out))
-#     print(out)
+#     f = open(sys.argv[2], 'w', encoding='utf8')
+#     f.write('\n'.join(out))
+#     f.close()
 
 # <--- IDE 전용 ---> (활성)
 # 입력 선언
@@ -581,26 +613,28 @@ input = r"11월 입찰 예정 서울시 구로구 구로동에 위치한 `센터
 # input = r"우리나라의 1인가구가 매년 증가세를 보이는 가운데 지난해에는 600만을 넘어섰다. 가구 분포 역시 1인 가구는 30.2%를 차지해 2인 가구(27.8%), 3인 가구(20.7%), 4인 이상(21.2%)를 크게 앞지르며 대세를 이루고 있다. 특히 대전지역의 1인 가구 비율은 33.7%로 전년(32.6%) 대비 1.1% 증가했고 전국 1인 가구 비율보다는 3.5%가 더 높은 것으로 조사됐다. 향후 5년간 1인 가구 수가 매년 15만가구씩 증가할 것이라는 예측이 나오면서 유통업계에서는 1인 가구를 위한 소포장, 1인 메뉴 등을 출시하는데 열을 올리고 있다. 이러한 트렌드에 발맞춰 대전지역 롯데마트 3개 지점에서는 ‘한끼밥상’이라는 테마로 소포장 전문 코너를 만들어 운영 중이다. 농림축산식품부의 GAP(우수관리인증) 농산물을 990원부터 만나볼 수 있어 소비자로부터 좋은 반응을 보이고 있다. 실제로 대전지역 롯데마트 3개 지점(대덕점, 노은점, 서대전점)의 2020년 신선식품 中 소용량 상품군의 매출은 전년대비 12% 가까이 증가했다. 롯데마트 충청호남영업부문 배효권 부문장은 “1인 가구가 유통시장의 새로운 소비 주체로 떠오르면서 1~2인 가구를 겨냥한 소포장, 가정간편식 등과 같은 시장의 규모가 급성장할 것으로 예상된다”며 “롯데마트에서는 지역의 생산자와 손잡고 해당 상품군을 지속적으로 확대∙강화하는데 최선을 다하겠다”고 말했다."
 # input = r"정부가 이르면 26일께 3월부터 적용할 새 거리두기 조정안 단계를 발표할 예정이다. 오는 28일 현행 거리두기 단계(수도권 2단계, 비수도권 1.5단계) 종료 이후 사회적 거리두기가 재상향될지 관심이 모아진다.    손영래 중앙사고수습본부 사회전략반장은 23일 코로나19 백브리핑에서  (이번주) 금요일(26일) 또는 토요일(27일) 정도 생각 중인데 내일 정례브리핑 때 정확히 공지하겠다 고 밝혔다.    설 연휴 이후 600명대까지 치솟았던 일일 확진자수가 이틀 연속 300명대를 유지했지만 정부는 다시 증가할 가능성이 크다고 전망했다.    손 반장은  오늘까지는 주말 검사 감소량으로 인한 확진자 감소 현상이 나타났다고 본다 며  내일부터는 조금 증가할 것 같고, 26일까지 증가 추이가 어느 정도 갈지 봐야 한다 고 말했다.    앞서 정부는 지난 18일 다음 달부터 업종별 집합금지를 최소화하는 대신 개인 간 사적모임을 규제하는 자율과 책임에 기반을 골자로 하는 기본 방향을 내놨다.    이번 사회적 거리두기 개편안에는 현행 5단계(1→1.5→2→2.5→3단계)의 단점을 보완하는 대책도 담길 전망이다. 앞서 정부는 지난해 6월 3단계 체계의 거리두기를 적용하다가 같은해 11월 5단계로 개편한 바 있다. 0.5단계 차이로 세분화돼 있는 현행 체계는 단계별 대국민 행동 메시지가 분명하지 않아 위험성을 인지하기가 쉽지 않다는 지적이 제기돼 왔다.    식당이나 카페 등 다중이용시설에 대해서는 영업을 금지하는 집합금지는 최소화할 예정이다. 다만, 시설의 감염 취약 요인을 제거하기 위한 밀집도를 조정하기 위한 '인원제한'은 이어간다는 방침이다.    정세균 국무총리는 이날 중대본 회의에서  방역수칙 위반 업소에 대해서는 현재 시행 중인 '원스트라이크 아웃 제도'를 예외 없이 적용하고 곧 지급할 4차 재난지원금 지원 대상에서도 제외할 것 이라고 강조했다."
 # input = r"연초부터 무섭게 솟아오르던 비트코인 가격이 조정을 보이고 있다. 주요 투자 기관들의 잇따른 참여에도 불구, 미국 정부가 비트코인의 안정성과 적법성에 대해 강한 의구심을 표하면서 참여자들 사이에서 거품 논란과 규제 이슈 등으로 불안감이 형성된 탓이다. 그럼에도 이젠 비트코인 투자에 유의해야 할 때란 의견과 단기 조정을 거쳐 재반등할 것이란 주장이 팽팽히 맞서고 있다.    지난주 사상 첫 5만달러대에 진입한 비트코인 가격은 24일 현재 4만달러대로 떨어졌다. 재닛 옐런 미 재무장관이 지난 23일 뉴욕타임스 딜북 콘퍼런스에서 비트코인에 대해 “화폐를 거래하는 데 극도로(extremely) 비효율적인 방법”이라며 “투기성이 강한 자산이며, 극도로(extremely) 변동성이 있단 점을 인지해야 한다”고 말했다.    이처럼 옐런의 입에서 ‘극도로’란 표현을 여러번 사용할 정도로 비트코인에 대해 강한 경계 발언이 나온 것을 기점으로 시장의 우려가 증폭됐다. 안 그래도 일론 머스크 테슬라 최고경영자(CEO)가 가상자산 가격이 높아 보인다고 발언한 상황에서 기름을 끼얹는 격이었다.  마크 해펠 UBS 글로벌 자산운용 최고투자책임자(CIO)는 성명을 통해 “우리는 고객들에게 가상자산 투기에 주의를 기울여야 한다고 조언하고 있다”며 “규제 리스크가 아직 해소되지 않은 상황에서 (비트코인의) 미래는 여전이 불투명하다”고 밝혔다. 미국 투자 전문지 배런스도 비트코인의 버블이 터줄 수 있어 관련주 역풍에 주의해야 한다고 보도했다.    우리나라에서도 비트코인에 대한 우려 목소리가 커지고 있다. 이주열 한국은행 총재는 지난 23일 가상자산에 대해 ‘내재가치(intrinsic value)’가 없다고 평가했다. 내재가치는 자산가치와 수익가치를 아우른 개념으로 우리나라 중앙은행의 수장이 비트코인을 공인 자산으로 인정받기 어렵다는 견해를 밝힌 것이라고 볼 수 있다.  한편 비트코인 강세론자들은 현재의 하락 국면이 추가 매수 유인이 될 수 있다는 입장이다. 캐시 우드 아크 인베스트 CEO는 한 인터뷰에서 “우리는 비트코인에 대해 매우 긍정적이며, 지금 건강한 조정(healthy correction)을 볼 수 있어 매우 행복하다”고 말했다.    전세계 처음으로 캐나다에서 출시된 비트코인 상장지수펀드(퍼포즈 비트코인 ETF)는 흥행 기록을 이어가고 있다. 가상자산 분석업체 글라스노드에 따르면 퍼포즈 ETF로의 자금 유입이 지속되면서 23일 현재 운용규모(AUM)가 5억6400만달러(약 6300억원)에 달하고 있다.  "
+# input = r"(서울=뉴스1) = 은성수 금융위원장이 3일 서울 종로구 정부서울청사 합동브리핑실에서 공매도 부분적 재개 관련 내용을 발표하고 있다.  금융위원회는 오는 3월15일 종료 예정인 공매도 금지 조치를 5월2일까지 연장하고 5월3일부터 코스피200·코스닥150 주가지수 구성종목에 대해 공매도를 부분 재개하기로 했다.  (금융위원회 제공) 2021.2.3/뉴스1 한국 정부의 공매도 금지 연장이 유동성 급감 등 부작용을 초래할 수 있다는 우려가 제기된다고 블룸버그통신이 5일 보도했다. 블룸버그통신은 이날 '세계 최장 공매도 금지국이 시장 하락이란 위험을 시장 하락이란 위험을 감수하고 있다'는 제목의 기사에서 한국의 공매도 금지 연장이 역효과를 초래할 수 있다고 전했다. 한국의 공매도 금지 연장이 세계에서 가장 길다는 점을 부각하면서다. 인도네시아는 이번달 연장을 종료할 예정이며, 지난해 초 공매도 금지를 단행한 프랑스는 제한을 몇 달만 유지했다. 통신은 한국의 공매도 금지가 한국 증시 랠리를 인위적으로 지지해 왔다는 데 대한 펀드매니저와 트레이더들의 우려가 늘어나고 있다고 지적했다. 그러면서 공매도 금지를 연장하기로 한 결정이 역효과를 낼 수 있다는 예상이 제기된다고 전했다. 호주 시드니 소재 AMP 캐피탈의 나데르 네이미 다이내믹 마킷 대표는 블룸버그에  한국 증시 강세장 속 공매도 금지 연장은 놀랍다 며  미국에서 일어난 것 같은 숏스퀴즈를 피하기 위한 목적이지만 시장 유동성의 급감이라는 의도치 않은 결과가 일어날 수 있다 고 예상했다.미국 인지브릿지캐피탈의 빈스 로루소 펀드매니저도  공매도 금지가 시장 유동성을 개선하고 변동성을 줄인다는 증거는 많지 않다 며  공매도 금지는 적정 주가를 찾기 위한 중요한 시장 도구들을 빼앗는 것 이라고 했다. 정치적인 고려에 의해 내려진 결정일 수 있다는 점도 지적했다. 전경대 맥쿼리투신운용 주식운용본부장(CIO)은  한국 정치인들에 의한 포퓰리즘이 금지 연장을 이끈 것 같다 며  (감독당국이) 여론에 흔들리고 있다는 점이 유감스럽다 고 밝혔다. 지난 3일 금융위원회는 3월15일 종료가 예정된 공매도 금지조치를 5월2일까지 연장한다고 밝혔다. 5월3일부터 코스피200·코스닥150 대표지수 종목에 한해 부분적으로 공매도를 재개하는 방식이다"
 # input = r"C:/comfinder/inputDoc.txt"
 # input = "C:/comfinder/text.csv"
 # input = r"C:/comfinder/longtext.csv"
 # CSV파일의 행 수 만큼 코드 실행
-out = []
+# out = []
 iterNum = totalDocs(input)
 for i in range(iterNum):
     text = inputToFormat(input, i)
     s = Splitter(text)
-    out += s.extnouns
-    out += [i for i in list(s.trpmidictnew.keys()) if s.trpmidictnew[i] >= 0.3]
-    out += [i for i in list(s.trpmidictold.keys()) if s.trpmidictold[i] >= 0.3]
-    # print(s.extnouns)
-    # print([i for i in list(s.trpmidictnew.keys()) if s.trpmidictnew[i] >= 0.3])
-    # print([i for i in list(s.trpmidictold.keys()) if s.trpmidictold[i] >= 0.3])
-out = list(dict.fromkeys(out))
-print(out)
+    # out += s.extnouns
+    # out += [i for i in list(s.trpmidictnew.keys()) if s.trpmidictnew[i] >= 0.3]
+    # out += [i for i in list(s.trpmidictold.keys()) if s.trpmidictold[i] >= 0.3]
+    print(s.extnouns)
+    print([i for i in list(s.trpmidictnew.keys()) if s.trpmidictnew[i] >= 0.3])
+    print([i for i in list(s.trpmidictold.keys()) if s.trpmidictold[i] >= 0.3])
+# out = list(dict.fromkeys(out))
+# print(out)
 
 
-# # 도태됨
+# 도태됨
+# text = inputToFormat("C:/comfinder/text.csv", 6)
 # s = Splitter(text)
 
 # # 추출된 명사
