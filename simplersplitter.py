@@ -104,15 +104,15 @@ class Splitter:
         self.extnouns = []
         for i in self.lplist:
 
-            # # 방식1
+            # # 방식1 : 아래에 설명
             # scores = []
             # finalscore = 0
             # chosen = ''
 
-            # 방식2
+            # 방식2 : 아래에 설명
             scores = []
             finalscore = []
-            chosen = []            
+            chosen = []
 
             for j in range(len(i)):
                 # 문제점1: 말뭉치는 클렌징이 되어있지 않음
@@ -144,7 +144,7 @@ class Splitter:
                 # 빈도율 계산 안 하고 빈도수만 계산
                 scores.append(wordcount)
 
-            # 방식1
+            # 방식1: 가장 짧은 LP부터 빈도수 확인하고 빈도수가 크게 차이날 경우 break (단점: 더 긴 명사를 찾을 수 없음)
             # for j in range(len(scores)):
             #     if j >= len(scores)-1:
             #         chosen = i[j]
@@ -162,8 +162,7 @@ class Splitter:
             # # 빈도율 계산 안 하고 빈도수만 계산 (2번 이상 등장)
             # if finalscore >= 2: self.extnouns.append(chosen)
 
-
-            # 방식2
+            # 방식2: 빈도수가 크게 차이나는 시점을 발견하고 등록이 된 뒤에도 계속 검색
             for j in range(len(scores)):
                 if j >= len(scores)-1:
                     chosen.append(i[j])
@@ -171,13 +170,15 @@ class Splitter:
                     break
                 # 예: 마스터투자운 -> 마스터투자운용 빈도수가 크게 차이가 안 날 경우 넘어가지만
                 # 마스터투자운용 -> 마스터투자운용은 빈도수가 크게 차이가 나기 때문에 그 직전에 명사로 채택
-                if scores[j] > scores[j+1] * 1.1:
+                if scores[j] > scores[j+1] * 1.1: # 이 인자는 차후 수정 가능
                     chosen.append(i[j])
                     finalscore.append(scores[j])
             for k in range(len(chosen)):
-                if finalscore[k] >= 2: self.extnouns.append(chosen[k])
+                if finalscore[k] >= 2: self.extnouns.append(chosen[k]) # 이 인자는 차후 수정 가능
 
+        # 명사 중복 제거
         self.extnouns = list(dict.fromkeys(self.extnouns))
+        # 불용어 제거 시점
 
         # # 괄호가 한 쪽만 포함된 문자열 제거: regex가 에러를 냄
         # temp = self.extnouns[:]
