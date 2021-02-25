@@ -60,6 +60,8 @@ class Splitter:
         parenthesisless += missed
         self.eoList = parenthesisless # 괄호가 한 쪽만 포함된 어절을 모두 제거하고 괄호 속 어절을 포함
 
+############################################################################################################################################
+# 없는부분
         # [LP, UM, RP] 형태가 가능한 모든 조합을 리스트로 구축
         self.posUMpairList = []
         for i in range(len(self.eoList)):
@@ -74,6 +76,8 @@ class Splitter:
         # for i in self.eoList:
         #     for j in self.eojeolPart(i):
         #         self.partialEoList.append(j)
+
+############################################################################################################################################
 
         # lplist: 모든 어절의 2자 이상의 LP부분 리스트: [["어절1LP1", "어절1LP2", ...], ["어절2LP1", "어절2LP2", ...], ...]
         self.lplist = []
@@ -108,7 +112,10 @@ class Splitter:
             # 빈도율이 2/어절수 이상인 경우 채택
             if finalscore >= 2 / self.wTotal: self.extnouns.append(chosen)
         self.extnouns = list(dict.fromkeys(self.extnouns))
-        
+
+############################################################################################################################################
+# 없는부분
+
         # 여기서 Mecab은 단일 글자가 어떠한 글자인지 판단하기 위해 사용
         m = Mecab()
         # m = Mecab(dicpath='C:/mecab/mecab-ko-dic') # (사용불가능, 비활성)
@@ -167,6 +174,8 @@ class Splitter:
         
         # print(self.isKnown("벫뗗"))
 
+############################################################################################################################################
+
     # 텍스트 클렌징
     def clean_str(self, text):
         text = text.replace(u'\xa0', u' ')
@@ -202,6 +211,18 @@ class Splitter:
     def wordFreq(self, word, corpus):
         return corpus.count(word)
 
+    # 한 어절에 대해서 모든 2자 이상의 LP 나열 리스트 (현재 미사용)
+    def genLP(self, eojeol):
+        # 괄호 뒤에 오는 어절도 인풋으로 받을 방법 필요?
+        out = []
+        if eojeol[-1] == '.': eojeol = eojeol[:-1]
+        for i in range(2, len(eojeol)+1):
+            out.append(eojeol[:i])
+        return out
+
+############################################################################################################################################
+# 없는부분
+
     # 어절 분리가 가능한 모든 조합 나열 리스트 [[LP1, UM1, RP1], [LP2, UM2, RP2], ...] UM은 사전에 등록되지 않은 부분
     def splitEojeol(self, eojeol):
         out = []
@@ -224,15 +245,6 @@ class Splitter:
         for i in range(len(eojeol)):
             for j in range(len(eojeol)-i):
                 out.append(eojeol[i:j+i+1])
-        return out
-
-    # 한 어절에 대해서 모든 2자 이상의 LP 나열 리스트 (현재 미사용)
-    def genLP(self, eojeol):
-        # 괄호 뒤에 오는 어절도 인풋으로 받을 방법 필요?
-        out = []
-        if eojeol[-1] == '.': eojeol = eojeol[:-1]
-        for i in range(2, len(eojeol)+1):
-            out.append(eojeol[:i])
         return out
 
     # 분리된 형태소를 조합하여 나올 수 있는 모든 단어 어절 리스트 (현재 미사용)
@@ -370,6 +382,8 @@ class Splitter:
         for i in range(index):
             out += data.at[i, 'NEWS_BODY'] + ' '
         return out
+
+############################################################################################################################################
 
 # # <--- CLI 전용 ---> (사용가능, 비활성)
 # # sys.argv[1]: 입력파일
