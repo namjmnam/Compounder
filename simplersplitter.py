@@ -458,7 +458,8 @@ class Splitter:
         # 도태된 방식
         # sentList = doc.split('. ')
         # 새로운 방식
-        sentList = re.findall('.*?다\.*', doc)
+        # sentList = re.findall('.*?다\.*', doc) # 다음과 같은 문제 발생: "~~있다는 ~~했다." -> ["~~있다", "는 ~~했다."]
+        sentList = re.findall('.*?다\.+', doc)
         sentList.append(re.sub('.*?다\.', '', doc))
         # 같은 문장 안에 등장하는 갯수 만큼 등록
         for i in sentList:
@@ -472,7 +473,7 @@ class Splitter:
                 #     # replace 방식이 아닌 append를 특정 수 만큼 해야
                 #     out.append(j)
                 #     temp = temp.replace(j, '', 1)
-        out.remove(word)
+        out.remove(word) # 여기서 오류가 나면 문장분리가 제대로 되고 있지 않다는 뜻
         return out
 
     def calculateTextRank(self, nounlist, conndict, iteration):
