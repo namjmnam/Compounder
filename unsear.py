@@ -36,8 +36,8 @@ class CorpusBuilder:
             doc = self.corpusDocList[i]
             self.corpusDocList[i] = cleanText(doc)
 
-        # 예외 리스트
-        self.exclude = ['VV', 'VA', 'VX', 'VCP', 'VCN', 'MAG', 'MAJ', 'JKS', 'JKC', 'JKG', 'JKO', 'JKB', 'JKQ', 'JX', 'JC', 'EP', 'EF', 'EC', 'ETM', 'XSV', 'XSA', 'XR']
+        # 필터 리스트
+        self.exclude = ['NR', 'NNB', 'VV', 'VA', 'VX', 'VCP', 'VCN', 'MAG', 'MAJ', 'JKS', 'JKC', 'JKG', 'JKO', 'JKB', 'JKQ', 'JX', 'JC', 'EP', 'EF', 'EC', 'ETM', 'XSV', 'XSA', 'XR']
 
         # Mecab
         self.m = Mecab()
@@ -65,6 +65,7 @@ def eoShortener(inputText):
 
 # 최장공통 부분문자열을 추출하는 반복문 (leftSearcher, eoShortener에 의존)
 def longestCommonSub(inputText, eoList, mode=1):
+    # mode != 1 : RP 추출
     track = []
     for i in range(len(eoShortener(inputText))):
         word = eoShortener(inputText)[i]
@@ -78,8 +79,8 @@ def longestCommonSub(inputText, eoList, mode=1):
                     return inputText[len(wordBefore):]
                 else:
                     return wordBefore
-        # if len(word) == 2 and res > 4: # 4는 말뭉치의 크기에 비례해야 한다.
-        #     # 2자만 남은 경우/원래 2자인 경우?
+        # if len(word) == 2 and freq > 4: # 4는 말뭉치의 크기에 비례해야 한다.
+        #     # 2자만 남은 경우/원래 2자인 경우
         #     return word
         track.append(freq)
 
@@ -112,7 +113,6 @@ def totalDocs(inputPath):
 # 텍스트 클렌징
 def cleanText(text):
     text = text.replace(u'\xa0', u' ')
-    text = text.strip()
     text = re.sub('([a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)', repl=' ', string=text)
     text = re.sub('(http|ftp|https)://(?:[-\w.]|(?:%[\da-fA-F]{2}))+', repl=' ', string=text)
     text = re.sub('([ㄱ-ㅎㅏ-ㅣ]+)', repl=' ', string=text)
@@ -123,10 +123,6 @@ def cleanText(text):
     text = text.replace('\n', ' ')
     text = text.replace('\t', ' ')
     text = text.replace('\r', ' ')
-    # text = re.sub('[0-9]+[개층위건만억조원년월일]', '', text)
-    # text = re.sub('[0-9]+.[0-9]+%', '', text)
-    # text = re.sub('[0-9]+[조억만년월시][0-9]+', '', text)
-    # text = re.sub('\b[0-9]+\b\s*', '', text)
     text = re.sub(' +', ' ', text)
     text = text.replace('()', ' ')
     text = text.upper()
@@ -134,7 +130,7 @@ def cleanText(text):
 
 # 어절 리스트 구축 (inputToFormat, clean_str, longestSub)
 def eoListBuilder(input, index, corpusEoList, mode=1):
-    # 고려사항: 명사추출하면서 RP를 모두 리스트로 뽑아보나?
+    # mode != 1 : RP 추출
     input = inputToFormat(input, index)
 
     input = cleanText(input)
@@ -150,14 +146,15 @@ def eoListBuilder(input, index, corpusEoList, mode=1):
         return out
 
     # 숫자, 단위 필터링 적용
-    percentfilter = re.compile(r'[0-9]+.[0-9]+%')
-    unitfilter = re.compile(r'[0-9]+[조억만년월시][0-9]+')
+    # unitfilter = re.compile(r'[0-9]+.[0-9]+%|[0-9]+[조억만천원년월달일시분][0-9]+')
+    unitfilter = re.compile(r'[0-9]+.[0-9]+%|[0-9]+[조억만천원년월달일시분위여건개층][0-9]*|[0-9]+거래일')
 
     # 말뭉치 어절 리스트
     out = []
     for i in eoL:
         word = longestCommonSub(i, corpusEoList)
-        if word != None and not percentfilter.search(word) and not unitfilter.search(word):
+        # if word != None:
+        if word != None and not unitfilter.search(word):
             out.append(word)
     # out = list(filter(None, out))
     out = list(dict.fromkeys(out))
@@ -165,7 +162,7 @@ def eoListBuilder(input, index, corpusEoList, mode=1):
 
 # 마지막 형태소가 조사일 경우 제거 (클래스에 의존)
 # 뒷부분의 모든 조사를 제거하고 싶은데 어떻게 하지?
-def removeJ(eo):
+def removeTransitive(eo):
     split = cb.m.pos(eo)
     for i in cb.exclude:
         if i in split[-1][1] and len(split) > 1:
@@ -173,8 +170,6 @@ def removeJ(eo):
     out = ""
     for i in split:
         out += i[0]
-    # print(split)
-    # print(out)
     return out
 
 # 끝이 조사인 경우 boolean으로 출력 (클래스에 의존)
@@ -229,8 +224,8 @@ def calcTFIDF(text, doc, corpusDocList):
 # 말뭉치 입력
 inputPath = r"C:/comfinder/longtext.csv"
 # cb = CorpusBuilder(inputPath, 1)
-# cb = CorpusBuilder(inputPath, 150)
-cb = CorpusBuilder(inputPath)
+cb = CorpusBuilder(inputPath, 100)
+# cb = CorpusBuilder(inputPath)
 
 # input 단일문서
 # input = inputPath
@@ -241,7 +236,8 @@ cb = CorpusBuilder(inputPath)
 # input = r"연초부터 무섭게 솟아오르던 비트코인 가격이 조정을 보이고 있다. 주요 투자 기관들의 잇따른 참여에도 불구, 미국 정부가 비트코인의 안정성과 적법성에 대해 강한 의구심을 표하면서 참여자들 사이에서 거품 논란과 규제 이슈 등으로 불안감이 형성된 탓이다. 그럼에도 이젠 비트코인 투자에 유의해야 할 때란 의견과 단기 조정을 거쳐 재반등할 것이란 주장이 팽팽히 맞서고 있다.    지난주 사상 첫 5만달러대에 진입한 비트코인 가격은 24일 현재 4만달러대로 떨어졌다. 재닛 옐런 미 재무장관이 지난 23일 뉴욕타임스 딜북 콘퍼런스에서 비트코인에 대해 “화폐를 거래하는 데 극도로(extremely) 비효율적인 방법”이라며 “투기성이 강한 자산이며, 극도로(extremely) 변동성이 있단 점을 인지해야 한다”고 말했다.    이처럼 옐런의 입에서 ‘극도로’란 표현을 여러번 사용할 정도로 비트코인에 대해 강한 경계 발언이 나온 것을 기점으로 시장의 우려가 증폭됐다. 안 그래도 일론 머스크 테슬라 최고경영자(CEO)가 가상자산 가격이 높아 보인다고 발언한 상황에서 기름을 끼얹는 격이었다.  마크 해펠 UBS 글로벌 자산운용 최고투자책임자(CIO)는 성명을 통해 “우리는 고객들에게 가상자산 투기에 주의를 기울여야 한다고 조언하고 있다”며 “규제 리스크가 아직 해소되지 않은 상황에서 (비트코인의) 미래는 여전이 불투명하다”고 밝혔다. 미국 투자 전문지 배런스도 비트코인의 버블이 터줄 수 있어 관련주 역풍에 주의해야 한다고 보도했다.    우리나라에서도 비트코인에 대한 우려 목소리가 커지고 있다. 이주열 한국은행 총재는 지난 23일 가상자산에 대해 ‘내재가치(intrinsic value)’가 없다고 평가했다. 내재가치는 자산가치와 수익가치를 아우른 개념으로 우리나라 중앙은행의 수장이 비트코인을 공인 자산으로 인정받기 어렵다는 견해를 밝힌 것이라고 볼 수 있다.  한편 비트코인 강세론자들은 현재의 하락 국면이 추가 매수 유인이 될 수 있다는 입장이다. 캐시 우드 아크 인베스트 CEO는 한 인터뷰에서 “우리는 비트코인에 대해 매우 긍정적이며, 지금 건강한 조정(healthy correction)을 볼 수 있어 매우 행복하다”고 말했다.    전세계 처음으로 캐나다에서 출시된 비트코인 상장지수펀드(퍼포즈 비트코인 ETF)는 흥행 기록을 이어가고 있다. 가상자산 분석업체 글라스노드에 따르면 퍼포즈 ETF로의 자금 유입이 지속되면서 23일 현재 운용규모(AUM)가 5억6400만달러(약 6300억원)에 달하고 있다.  "
 # input = r"(서울=뉴스1) = 은성수 금융위원장이 3일 서울 종로구 정부서울청사 합동브리핑실에서 공매도 부분적 재개 관련 내용을 발표하고 있다.  금융위원회는 오는 3월15일 종료 예정인 공매도 금지 조치를 5월2일까지 연장하고 5월3일부터 코스피200·코스닥150 주가지수 구성종목에 대해 공매도를 부분 재개하기로 했다.  (금융위원회 제공) 2021.2.3/뉴스1 한국 정부의 공매도 금지 연장이 유동성 급감 등 부작용을 초래할 수 있다는 우려가 제기된다고 블룸버그통신이 5일 보도했다. 블룸버그통신은 이날 '세계 최장 공매도 금지국이 시장 하락이란 위험을 시장 하락이란 위험을 감수하고 있다'는 제목의 기사에서 한국의 공매도 금지 연장이 역효과를 초래할 수 있다고 전했다. 한국의 공매도 금지 연장이 세계에서 가장 길다는 점을 부각하면서다. 인도네시아는 이번달 연장을 종료할 예정이며, 지난해 초 공매도 금지를 단행한 프랑스는 제한을 몇 달만 유지했다. 통신은 한국의 공매도 금지가 한국 증시 랠리를 인위적으로 지지해 왔다는 데 대한 펀드매니저와 트레이더들의 우려가 늘어나고 있다고 지적했다. 그러면서 공매도 금지를 연장하기로 한 결정이 역효과를 낼 수 있다는 예상이 제기된다고 전했다. 호주 시드니 소재 AMP 캐피탈의 나데르 네이미 다이내믹 마킷 대표는 블룸버그에  한국 증시 강세장 속 공매도 금지 연장은 놀랍다 며  미국에서 일어난 것 같은 숏스퀴즈를 피하기 위한 목적이지만 시장 유동성의 급감이라는 의도치 않은 결과가 일어날 수 있다 고 예상했다.미국 인지브릿지캐피탈의 빈스 로루소 펀드매니저도  공매도 금지가 시장 유동성을 개선하고 변동성을 줄인다는 증거는 많지 않다 며  공매도 금지는 적정 주가를 찾기 위한 중요한 시장 도구들을 빼앗는 것 이라고 했다. 정치적인 고려에 의해 내려진 결정일 수 있다는 점도 지적했다. 전경대 맥쿼리투신운용 주식운용본부장(CIO)은  한국 정치인들에 의한 포퓰리즘이 금지 연장을 이끈 것 같다 며  (감독당국이) 여론에 흔들리고 있다는 점이 유감스럽다 고 밝혔다. 지난 3일 금융위원회는 3월15일 종료가 예정된 공매도 금지조치를 5월2일까지 연장한다고 밝혔다. 5월3일부터 코스피200·코스닥150 대표지수 종목에 한해 부분적으로 공매도를 재개하는 방식이다"
 
-# 단어추출 프로세스
+# 말뭉치 대상 단어추출 프로세스
+# 문제점: 2자 명사는 추출하기 힘듬
 for i in cb.corpusDocList:
     eoL = eoListBuilder(i, 0, cb.corpusEoList)
     temp = []
@@ -250,16 +246,31 @@ for i in cb.corpusDocList:
         if calcTFIDF(j, i, cb.corpusDocList) > 8: temp.append(j)
     # 조사가 제거된 단어
     for j in extractList(eoL, 2):
-        # while isTransitive(j): j = removeJ(j)
-        # if calcTFIDF(j, i, cb.corpusDocList) > 10: temp.append(j)
-        eo = removeJ(j)
+        # Old method
+        eo = removeTransitive(j)
+        # if calcTFIDF(eo, i, cb.corpusDocList) > 8 and not isTransitive(eo) and eo not in temp and len(re.sub(r'[0-9]+', '-', eo)) >= 3:
+        # if not isTransitive(eo) and eo not in temp:
+        # if len(re.sub(r'[0-9]+', '-', eo)) >= 3 and not isTransitive(eo) and eo not in temp:
         if calcTFIDF(eo, i, cb.corpusDocList) > 8 and not isTransitive(eo) and eo not in temp:
             temp.append(eo)
+
+        # New method (takes forever)
+        # while isTransitive(j): j = removeTransitive(j)
+        # if calcTFIDF(j, i, cb.corpusDocList) > 8 and j not in temp: temp.append(j)
     print(temp)
 
-# RP 출력
+# 단일문서 RP 출력
 # print(eoListBuilder(input, 0, cb.corpusEoList, 2))
+
+# 말뭉치 전체 RP 출력
+# for i in cb.corpusDocList:
+#     print(eoListBuilder(i, 0, cb.corpusEoList, 2))
 
 # 문서(input)와 말뭉치(inputPath)에 대한 단어(text)의 TF-IDF 계산
 # text = "순호감도"
 # calcTFIDF(text, input, inputPath)
+
+# 모든 조사를 제거
+# word = "순이었다"
+# while isTransitive(word): word = removeTransitive(word)
+# print(word)
