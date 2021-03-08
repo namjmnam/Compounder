@@ -111,6 +111,21 @@ def leftLongestCommonSub(word, eoList, mode=1):
         #     return word
         track.append(freq)
 
+def leftLongestCommonSubNew(word, eoList):
+    track = []
+    for i in range(len(eoShortener(word))):
+        wordCurrent = eoShortener(word)[i]
+        wordBefore = eoShortener(word)[i-1]
+        freq = leftSearcher(wordCurrent, eoList)
+
+        if len(track) > 0:
+            # if freq == track[-1] and freq > 1: # 한 문자 줄였는데 빈도가 같을 경우 그 전 부분문자열을 채택
+            if freq < track[-1] * 1.1 and freq > 1: # 한 문자 줄였는데 빈도가 크게 차이나지 않는 경우 그 전 부분문자열 채택
+                return wordBefore
+
+        track.append(freq)
+        return wordCurrent # 마지막까지 남은 경우 그냥 등록
+
 # 입력인자를 형식에 맞게 고침
 def inputToFormat(inputPath, index=0):
     # 50자보다 길 경우 문자열로 인식
@@ -197,6 +212,11 @@ def eoListBuilder(inputPath, index, corpusEoList, mode=1):
     out = list(dict.fromkeys(out))
     return out
 
+def eoSplitter(doc):
+    doc = cleanText(doc)
+    temp = doc.split(' ')
+    return [i for i in temp if len(re.sub(r'[0-9]+', '-', i)) >= 2]
+
 # 마지막 형태소가 조사일 경우 제거 (클래스에 의존: cb.exclude, cb.m)
 def removeTransitive(eo):
     split = cb.m.pos(eo)
@@ -268,26 +288,26 @@ cb = CorpusBuilder(inputPath, 100)
 # 문제점1: 2자 명사는 추출하기 힘듬: leftLongestCommonSub에서 수정
 # 문제점2: leftLongestCommonSub에서 명사여도 줄인 문자열이 매우 흔한 경우(예: 네이버 -> 네이, 코스피 -> 코스) 줄인 문자열을 채택함
 # 문제점3: extractList에서 너무 많은것들이 걸러짐
-for i in cb.corpusDocList:
-    eoL = eoListBuilder(i, 0, cb.corpusEoList)
-    temp = []
-    # 추출된 단어
-    for j in extractList(eoL):
-        if calcTFIDF(j, i, cb.corpusDocList) > 8: temp.append(j)
-    # 조사가 제거된 단어
-    for j in extractList(eoL, 2):
-        # # Old method
-        # eo = removeTransitive(j)
-        # # if calcTFIDF(eo, i, cb.corpusDocList) > 8 and not isTransitive(eo) and eo not in temp and len(re.sub(r'[0-9]+', '-', eo)) >= 3:
-        # # if not isTransitive(eo) and eo not in temp:
-        # # if len(re.sub(r'[0-9]+', '-', eo)) >= 3 and not isTransitive(eo) and eo not in temp:
-        # if calcTFIDF(eo, i, cb.corpusDocList) > 8 and not isTransitive(eo) and eo not in temp:
-        #     temp.append(eo)
+# for i in cb.corpusDocList:
+#     eoL = eoListBuilder(i, 0, cb.corpusEoList)
+#     temp = []
+#     # 추출된 단어
+#     for j in extractList(eoL):
+#         if calcTFIDF(j, i, cb.corpusDocList) > 8: temp.append(j)
+#     # 조사가 제거된 단어
+#     for j in extractList(eoL, 2):
+#         # # Old method
+#         # eo = removeTransitive(j)
+#         # # if calcTFIDF(eo, i, cb.corpusDocList) > 8 and not isTransitive(eo) and eo not in temp and len(re.sub(r'[0-9]+', '-', eo)) >= 3:
+#         # # if not isTransitive(eo) and eo not in temp:
+#         # # if len(re.sub(r'[0-9]+', '-', eo)) >= 3 and not isTransitive(eo) and eo not in temp:
+#         # if calcTFIDF(eo, i, cb.corpusDocList) > 8 and not isTransitive(eo) and eo not in temp:
+#         #     temp.append(eo)
 
-        # New method
-        while isTransitive(j): j = removeTransitive(j)
-        if j != "" and calcTFIDF(j, i, cb.corpusDocList) > 8 and j not in temp: temp.append(j)
-    print(temp)
+#         # New method
+#         while isTransitive(j): j = removeTransitive(j)
+#         if j != "" and calcTFIDF(j, i, cb.corpusDocList) > 8 and j not in temp: temp.append(j)
+#     print(temp)
 
 # # extractList를 사용하지 않은 결과
 # for i in cb.corpusDocList:
@@ -296,6 +316,35 @@ for i in cb.corpusDocList:
 #     for j in eoL:
 #         if calcTFIDF(j, i, cb.corpusDocList) > 8: temp.append(j)
 #     print(temp)
+
+# 새 방식
+for i in cb.corpusDocList:
+    # eoL 반복되는 문자열
+    eoL = []
+    # i: 개별문서
+    for j in eoSplitter(i):
+        # j: 개별어절
+        eoL.append(leftLongestCommonSubNew(j, cb.corpusEoList))
+    eoL = list(filter(None, eoL))
+    eoL = list(dict.fromkeys(eoL))
+    # print(eoL)
+
+    # eoLR 반복되는 문자열에서 뒤음절 제거
+    eoLR = []
+    for j in eoL:
+        # j: 어절
+        while isTransitive(j): j = removeTransitive(j)
+        eoLR.append(j)
+    # print(eoLR)
+
+    # 문자열/조사제거문자열 페어
+    # for j in range(len(eoL)):
+    #     print([eoL[j], eoLR[j]])
+
+    for j in eoL:
+        print(j) # search all
+        for k in range(1, len(j)-1): # search str-1 to str up to 2 chars
+            print(j[:-k])
 
 # input 단일문서
 # input = inputPath
