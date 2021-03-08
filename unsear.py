@@ -25,12 +25,14 @@ class CorpusBuilder:
             iterNum = corpusSize # 임시
         for i in range(iterNum):
             self.corpus += inputToFormat(inputPath, i)
+
+        # 말뭉치 어절 리스트 구축
         corpustext = cleanText(self.corpus)
         temp = corpustext.split(' ')
         self.corpusEoList = [i for i in temp if len(re.sub(r'[0-9]+', '-', i)) >= 2]
 
-        # raw list of docs (for TF-IDF)
-        # 컬럼에 'NEWS_BODY'가 없을 경우 오류
+        # 문서 리스트 구축 (for TF-IDF)
+        # 문제점: 칼럼에 'NEWS_BODY'가 없을 경우 오류
         self.corpusDocList = list(pandas.read_csv(inputPath)['NEWS_BODY'])
         for i in range(len(self.corpusDocList)):
             doc = self.corpusDocList[i]
@@ -43,44 +45,69 @@ class CorpusBuilder:
         self.m = Mecab()
 
 # 어절 리스트를 대상으로 입력 문자열을 각 어절의 좌측에서 검색하여 나온 결과를 출력
-def leftSearcher(inputText, eoList):
+def leftSearcher(word, eoList):
     out = []
-    max = len(inputText)
+    max = len(word)
     for i in eoList:
-        if len(i) >= max and i[0:max] == inputText: out.append(i)
+        if len(i) >= max and i[0:max] == word: out.append(i)
     # print(out) # 포함된 어절을 모두 콘솔에 출력
     return len(out)
 
 # 입력 문자열이 2자가 될 때 까지 오른쪽에서부터 한 문자씩 줄여 리스트로 출력
-def eoShortener(inputText):
+def eoShortener(word):
     out = []
-    max = len(inputText)
+    max = len(word)
     if max < 3: return []
     # if inputText[-1] == '.': inputText = inputText[:-1]
-    for i in range(len(inputText)-1):
-        shortened = inputText[0:max-i]
+    for i in range(len(word)-1):
+        shortened = word[0:max-i]
         if shortened[-1] not in ['.', '-']: # 필터링
-            out.append(inputText[0:max-i])
+            out.append(word[0:max-i])
     return out
 
 # 최장공통 부분문자열을 추출하는 반복문 (leftSearcher, eoShortener에 의존)
-def longestCommonSub(inputText, eoList, mode=1):
+def leftLongestCommonSub(word, eoList, mode=1):
     # mode != 1 : RP 추출
     track = []
-    for i in range(len(eoShortener(inputText))):
-        word = eoShortener(inputText)[i]
-        freq = leftSearcher(word, eoList)
-        wordBefore = eoShortener(inputText)[i-1]
+    out = [] # mode == 3 전용
+    chained = False # mode == 3 전용
+
+    for i in range(len(eoShortener(word))):
+        wordCurrent = eoShortener(word)[i]
+        wordBefore = eoShortener(word)[i-1]
+        freq = leftSearcher(wordCurrent, eoList)
+
+        # mode == 3 한 어절에서 여러개의 명사 추출 시도
+        if mode == 3:
+            # 한 문자 줄였는데 빈도가 크게 늘지 않는 경우 그 전 부분문자열 채택
+            # 문제점: 중복해서 넣게 됨: 미래에셋대우스팩4호 -> 미래에셋대우스팩4 -> 미래에셋대우스팩
+            if len(track) > 0:
+                # if (freq < track[-1] * 1.1 or freq < track[-1] + 1) and freq > 1:
+                if freq < track[-1] * 1.1 and freq > 1:
+                    if not chained:
+                        out.append(wordBefore)
+                        chained = True
+                    # while (freq < track[-1] * 1.1 or freq < track[-1] + 1) and freq > 1: continue
+                else: chained = False
+            if i == len(eoShortener(word))-1:
+                return out
+            else:
+                track.append(freq)
+                continue
+
         if len(track) > 0:
-            if freq == track[-1] and freq > 1:
-                # 한 문자 줄였는데도 빈도가 같을 경우 그 전 부분문자열을 채택
-                # print("found " + wordBefore)
+            # if freq == track[-1] and freq > 1: # 한 문자 줄였는데 빈도가 같을 경우 그 전 부분문자열을 채택
+            if freq < track[-1] * 1.1 and freq > 1: # 한 문자 줄였는데 빈도가 크게 차이나지 않는 경우 그 전 부분문자열 채택
                 if mode != 1:
-                    return inputText[len(wordBefore):]
+                    return word[len(wordBefore):]
                 else:
                     return wordBefore
+        # if len(wordCurrent) == 2:
+        #     # 마지막 남은 어절이 2자인 경우:
+        #     pass
+            
         # if len(word) == 2 and freq > 4: # 4는 말뭉치의 크기에 비례해야 한다.
-        #     # 2자만 남은 경우/원래 2자인 경우
+        #     # 어절이 2자인 경우
         #     return word
         track.append(freq)
 
@@ -128,20 +155,30 @@ def cleanText(text):
     text = text.upper()
     return text
 
-# 어절 리스트 구축 (inputToFormat, clean_str, longestSub)
-def eoListBuilder(input, index, corpusEoList, mode=1):
-    # mode != 1 : RP 추출
-    input = inputToFormat(input, index)
+# 문서 단위 어절 리스트 구축 (inputToFormat, cleanText, leftLongestCommonSub에 의존)
+def eoListBuilder(inputPath, index, corpusEoList, mode=1):
+    inputPath = inputToFormat(inputPath, index)
 
-    input = cleanText(input)
-    temp = input.split(' ')
+    inputPath = cleanText(inputPath)
+    temp = inputPath.split(' ')
     eoL = [i for i in temp if len(re.sub(r'[0-9]+', '-', i)) >= 2]
 
-    if mode != 1:
+    # mode == 2 : RP 추출
+    if mode == 2:
         out = []
         for i in eoL:
-            out.append(longestCommonSub(i, corpusEoList, 2))
+            out.append(leftLongestCommonSub(i, corpusEoList, 2))
         out = list(filter(None, out))
+        out = list(dict.fromkeys(out))
+        return out
+        
+    # mode == 3 : leftLongestCommonSub mode 3
+    if mode == 3:
+        out = []
+        for i in eoL:
+            temp = leftLongestCommonSub(i, corpusEoList, 3)
+            if temp != None: out += temp
+        # out = list(filter(None, out))
         out = list(dict.fromkeys(out))
         return out
 
@@ -152,7 +189,7 @@ def eoListBuilder(input, index, corpusEoList, mode=1):
     # 말뭉치 어절 리스트
     out = []
     for i in eoL:
-        word = longestCommonSub(i, corpusEoList)
+        word = leftLongestCommonSub(i, corpusEoList)
         # if word != None:
         if word != None and not unitfilter.search(word):
             out.append(word)
@@ -160,53 +197,54 @@ def eoListBuilder(input, index, corpusEoList, mode=1):
     out = list(dict.fromkeys(out))
     return out
 
-# 마지막 형태소가 조사일 경우 제거 (클래스에 의존)
-# 뒷부분의 모든 조사를 제거하고 싶은데 어떻게 하지?
+# 마지막 형태소가 조사일 경우 제거 (클래스에 의존: cb.exclude, cb.m)
 def removeTransitive(eo):
     split = cb.m.pos(eo)
     for i in cb.exclude:
-        if i in split[-1][1] and len(split) > 1:
+        if len(split) > 1 and i in split[-1][1]:
             del split[-1]
+        if len(split) == 1 and i in split[-1][1]:
+            return ""
     out = ""
     for i in split:
         out += i[0]
     return out
 
-# 끝이 조사인 경우 boolean으로 출력 (클래스에 의존)
+# 끝이 조사인 경우 boolean으로 출력 (클래스에 의존: cb.exclude, cb.m)
 def isTransitive(eo):
-    lastm = cb.m.pos(eo)[-1][1]
+    split = cb.m.pos(eo)
     for i in cb.exclude:
-        if i in lastm:
+        if len(split) > 0 and i in split[-1][1]:
             return True
     return False
 
-# 어절 리스트에서 명사 리스트 출력 (클래스에 의존)
+# 어절 리스트에서 명사 리스트 출력 (클래스에 의존: cb.exclude, cb.m)
 def extractList(eoList, mode=1):
     temp = []
     banned = []
     for i in eoList: # e.g '설명했다'
         possiblyNoun = True
 
-        # if len(m.pos(i)) == 1 and m.pos(i)[0][1][0] == 'N':
+        # if len(cb.m.pos(i)) == 1 and cb.m.pos(i)[0][1][0] == 'N':
         #     # 이미 등록된 명사일 경우 제외
         #     continue
 
         for j in cb.exclude:
             # if (j in cb.m.pos(i)[-1][1] or cb.m.pos(i)[-1] == ('의', 'NNG')) and cb.m.pos(i)[-1] != ('도', 'JX') and cb.m.pos(i)[-1] != ('리온', 'EC') and i != '비대면':
                 # 가장 마지막 형태소가 조사일 경우(exclude 조건에 해당될 경우) / '의'로 끝날 경우 / '도'로 끝날 경우는 예외 / '리온'으로 끝날 경우도 예외 / '비대면' 예외
-                # 예외: 순호감도, 셀트리온, 비대면, 퍼블리, 아일리아와
+                # 예외: 순호감도, 셀트리온, 비대면, 퍼블리싱(퍼블리), 아일리아와
             if j in cb.m.pos(i)[-1][1]:
                 possiblyNoun = False
                 banned.append(i)
                 break
         if possiblyNoun: temp.append(i)
     eoList = temp
-    # print(eoList) # 명사 리스트
-    # print(banned) # 제거된 리스트
+    # mode=1 명사 리스트
+    # mode=2 제거된 리스트
     if mode == 1: return eoList
     else: return banned
 
-# TF-IDF calculation (class에 의존)
+# TF-IDF calculation
 def calcTFIDF(text, doc, corpusDocList):
     # calculate TF
     tf = doc.count(text)
@@ -218,7 +256,6 @@ def calcTFIDF(text, doc, corpusDocList):
             deno += 1
     if deno == 0: deno = 0.001
     idf = math.log(len(corpusDocList) / deno)
-    # print(tf*idf)
     return tf*idf
 
 # 말뭉치 입력
@@ -226,6 +263,39 @@ inputPath = r"C:/comfinder/longtext.csv"
 # cb = CorpusBuilder(inputPath, 1)
 cb = CorpusBuilder(inputPath, 100)
 # cb = CorpusBuilder(inputPath)
+
+# 말뭉치 대상 단어추출 프로세스
+# 문제점1: 2자 명사는 추출하기 힘듬: leftLongestCommonSub에서 수정
+# 문제점2: leftLongestCommonSub에서 명사여도 줄인 문자열이 매우 흔한 경우(예: 네이버 -> 네이, 코스피 -> 코스) 줄인 문자열을 채택함
+# 문제점3: extractList에서 너무 많은것들이 걸러짐
+for i in cb.corpusDocList:
+    eoL = eoListBuilder(i, 0, cb.corpusEoList)
+    temp = []
+    # 추출된 단어
+    for j in extractList(eoL):
+        if calcTFIDF(j, i, cb.corpusDocList) > 8: temp.append(j)
+    # 조사가 제거된 단어
+    for j in extractList(eoL, 2):
+        # # Old method
+        # eo = removeTransitive(j)
+        # # if calcTFIDF(eo, i, cb.corpusDocList) > 8 and not isTransitive(eo) and eo not in temp and len(re.sub(r'[0-9]+', '-', eo)) >= 3:
+        # # if not isTransitive(eo) and eo not in temp:
+        # # if len(re.sub(r'[0-9]+', '-', eo)) >= 3 and not isTransitive(eo) and eo not in temp:
+        # if calcTFIDF(eo, i, cb.corpusDocList) > 8 and not isTransitive(eo) and eo not in temp:
+        #     temp.append(eo)
+
+        # New method
+        while isTransitive(j): j = removeTransitive(j)
+        if j != "" and calcTFIDF(j, i, cb.corpusDocList) > 8 and j not in temp: temp.append(j)
+    print(temp)
+
+# # extractList를 사용하지 않은 결과
+# for i in cb.corpusDocList:
+#     eoL = eoListBuilder(i, 0, cb.corpusEoList, 3)
+#     temp = []
+#     for j in eoL:
+#         if calcTFIDF(j, i, cb.corpusDocList) > 8: temp.append(j)
+#     print(temp)
 
 # input 단일문서
 # input = inputPath
@@ -235,29 +305,20 @@ cb = CorpusBuilder(inputPath, 100)
 # input = r"정부가 이르면 26일께 3월부터 적용할 새 거리두기 조정안 단계를 발표할 예정이다. 오는 28일 현행 거리두기 단계(수도권 2단계, 비수도권 1.5단계) 종료 이후 사회적 거리두기가 재상향될지 관심이 모아진다.    손영래 중앙사고수습본부 사회전략반장은 23일 코로나19 백브리핑에서  (이번주) 금요일(26일) 또는 토요일(27일) 정도 생각 중인데 내일 정례브리핑 때 정확히 공지하겠다 고 밝혔다.    설 연휴 이후 600명대까지 치솟았던 일일 확진자수가 이틀 연속 300명대를 유지했지만 정부는 다시 증가할 가능성이 크다고 전망했다.    손 반장은  오늘까지는 주말 검사 감소량으로 인한 확진자 감소 현상이 나타났다고 본다 며  내일부터는 조금 증가할 것 같고, 26일까지 증가 추이가 어느 정도 갈지 봐야 한다 고 말했다.    앞서 정부는 지난 18일 다음 달부터 업종별 집합금지를 최소화하는 대신 개인 간 사적모임을 규제하는 자율과 책임에 기반을 골자로 하는 기본 방향을 내놨다.    이번 사회적 거리두기 개편안에는 현행 5단계(1→1.5→2→2.5→3단계)의 단점을 보완하는 대책도 담길 전망이다. 앞서 정부는 지난해 6월 3단계 체계의 거리두기를 적용하다가 같은해 11월 5단계로 개편한 바 있다. 0.5단계 차이로 세분화돼 있는 현행 체계는 단계별 대국민 행동 메시지가 분명하지 않아 위험성을 인지하기가 쉽지 않다는 지적이 제기돼 왔다.    식당이나 카페 등 다중이용시설에 대해서는 영업을 금지하는 집합금지는 최소화할 예정이다. 다만, 시설의 감염 취약 요인을 제거하기 위한 밀집도를 조정하기 위한 '인원제한'은 이어간다는 방침이다.    정세균 국무총리는 이날 중대본 회의에서  방역수칙 위반 업소에 대해서는 현재 시행 중인 '원스트라이크 아웃 제도'를 예외 없이 적용하고 곧 지급할 4차 재난지원금 지원 대상에서도 제외할 것 이라고 강조했다."
 # input = r"연초부터 무섭게 솟아오르던 비트코인 가격이 조정을 보이고 있다. 주요 투자 기관들의 잇따른 참여에도 불구, 미국 정부가 비트코인의 안정성과 적법성에 대해 강한 의구심을 표하면서 참여자들 사이에서 거품 논란과 규제 이슈 등으로 불안감이 형성된 탓이다. 그럼에도 이젠 비트코인 투자에 유의해야 할 때란 의견과 단기 조정을 거쳐 재반등할 것이란 주장이 팽팽히 맞서고 있다.    지난주 사상 첫 5만달러대에 진입한 비트코인 가격은 24일 현재 4만달러대로 떨어졌다. 재닛 옐런 미 재무장관이 지난 23일 뉴욕타임스 딜북 콘퍼런스에서 비트코인에 대해 “화폐를 거래하는 데 극도로(extremely) 비효율적인 방법”이라며 “투기성이 강한 자산이며, 극도로(extremely) 변동성이 있단 점을 인지해야 한다”고 말했다.    이처럼 옐런의 입에서 ‘극도로’란 표현을 여러번 사용할 정도로 비트코인에 대해 강한 경계 발언이 나온 것을 기점으로 시장의 우려가 증폭됐다. 안 그래도 일론 머스크 테슬라 최고경영자(CEO)가 가상자산 가격이 높아 보인다고 발언한 상황에서 기름을 끼얹는 격이었다.  마크 해펠 UBS 글로벌 자산운용 최고투자책임자(CIO)는 성명을 통해 “우리는 고객들에게 가상자산 투기에 주의를 기울여야 한다고 조언하고 있다”며 “규제 리스크가 아직 해소되지 않은 상황에서 (비트코인의) 미래는 여전이 불투명하다”고 밝혔다. 미국 투자 전문지 배런스도 비트코인의 버블이 터줄 수 있어 관련주 역풍에 주의해야 한다고 보도했다.    우리나라에서도 비트코인에 대한 우려 목소리가 커지고 있다. 이주열 한국은행 총재는 지난 23일 가상자산에 대해 ‘내재가치(intrinsic value)’가 없다고 평가했다. 내재가치는 자산가치와 수익가치를 아우른 개념으로 우리나라 중앙은행의 수장이 비트코인을 공인 자산으로 인정받기 어렵다는 견해를 밝힌 것이라고 볼 수 있다.  한편 비트코인 강세론자들은 현재의 하락 국면이 추가 매수 유인이 될 수 있다는 입장이다. 캐시 우드 아크 인베스트 CEO는 한 인터뷰에서 “우리는 비트코인에 대해 매우 긍정적이며, 지금 건강한 조정(healthy correction)을 볼 수 있어 매우 행복하다”고 말했다.    전세계 처음으로 캐나다에서 출시된 비트코인 상장지수펀드(퍼포즈 비트코인 ETF)는 흥행 기록을 이어가고 있다. 가상자산 분석업체 글라스노드에 따르면 퍼포즈 ETF로의 자금 유입이 지속되면서 23일 현재 운용규모(AUM)가 5억6400만달러(약 6300억원)에 달하고 있다.  "
 # input = r"(서울=뉴스1) = 은성수 금융위원장이 3일 서울 종로구 정부서울청사 합동브리핑실에서 공매도 부분적 재개 관련 내용을 발표하고 있다.  금융위원회는 오는 3월15일 종료 예정인 공매도 금지 조치를 5월2일까지 연장하고 5월3일부터 코스피200·코스닥150 주가지수 구성종목에 대해 공매도를 부분 재개하기로 했다.  (금융위원회 제공) 2021.2.3/뉴스1 한국 정부의 공매도 금지 연장이 유동성 급감 등 부작용을 초래할 수 있다는 우려가 제기된다고 블룸버그통신이 5일 보도했다. 블룸버그통신은 이날 '세계 최장 공매도 금지국이 시장 하락이란 위험을 시장 하락이란 위험을 감수하고 있다'는 제목의 기사에서 한국의 공매도 금지 연장이 역효과를 초래할 수 있다고 전했다. 한국의 공매도 금지 연장이 세계에서 가장 길다는 점을 부각하면서다. 인도네시아는 이번달 연장을 종료할 예정이며, 지난해 초 공매도 금지를 단행한 프랑스는 제한을 몇 달만 유지했다. 통신은 한국의 공매도 금지가 한국 증시 랠리를 인위적으로 지지해 왔다는 데 대한 펀드매니저와 트레이더들의 우려가 늘어나고 있다고 지적했다. 그러면서 공매도 금지를 연장하기로 한 결정이 역효과를 낼 수 있다는 예상이 제기된다고 전했다. 호주 시드니 소재 AMP 캐피탈의 나데르 네이미 다이내믹 마킷 대표는 블룸버그에  한국 증시 강세장 속 공매도 금지 연장은 놀랍다 며  미국에서 일어난 것 같은 숏스퀴즈를 피하기 위한 목적이지만 시장 유동성의 급감이라는 의도치 않은 결과가 일어날 수 있다 고 예상했다.미국 인지브릿지캐피탈의 빈스 로루소 펀드매니저도  공매도 금지가 시장 유동성을 개선하고 변동성을 줄인다는 증거는 많지 않다 며  공매도 금지는 적정 주가를 찾기 위한 중요한 시장 도구들을 빼앗는 것 이라고 했다. 정치적인 고려에 의해 내려진 결정일 수 있다는 점도 지적했다. 전경대 맥쿼리투신운용 주식운용본부장(CIO)은  한국 정치인들에 의한 포퓰리즘이 금지 연장을 이끈 것 같다 며  (감독당국이) 여론에 흔들리고 있다는 점이 유감스럽다 고 밝혔다. 지난 3일 금융위원회는 3월15일 종료가 예정된 공매도 금지조치를 5월2일까지 연장한다고 밝혔다. 5월3일부터 코스피200·코스닥150 대표지수 종목에 한해 부분적으로 공매도를 재개하는 방식이다"
+# input = inputToFormat(inputPath, 16)
+# input = inputToFormat(inputPath, 45)
 
-# 말뭉치 대상 단어추출 프로세스
-# 문제점: 2자 명사는 추출하기 힘듬
-for i in cb.corpusDocList:
-    eoL = eoListBuilder(i, 0, cb.corpusEoList)
-    temp = []
-    # 추출된 단어
-    for j in extractList(eoL):
-        if calcTFIDF(j, i, cb.corpusDocList) > 8: temp.append(j)
-    # 조사가 제거된 단어
-    for j in extractList(eoL, 2):
-        # Old method
-        eo = removeTransitive(j)
-        # if calcTFIDF(eo, i, cb.corpusDocList) > 8 and not isTransitive(eo) and eo not in temp and len(re.sub(r'[0-9]+', '-', eo)) >= 3:
-        # if not isTransitive(eo) and eo not in temp:
-        # if len(re.sub(r'[0-9]+', '-', eo)) >= 3 and not isTransitive(eo) and eo not in temp:
-        if calcTFIDF(eo, i, cb.corpusDocList) > 8 and not isTransitive(eo) and eo not in temp:
-            temp.append(eo)
+# 단일문서 leftLongestCommonSub mode 3 출력
+# print(leftLongestCommonSub("미래에셋대우스팩4호", cb.corpusEoList, 3))
+# print(leftLongestCommonSub("한샘", cb.corpusEoList, 3))
+# print(range(len(eoShortener("한샘"))))
+# print(leftLongestCommonSub("---------------------------------------", cb.corpusEoList, 3))
 
-        # New method (takes forever)
-        # while isTransitive(j): j = removeTransitive(j)
-        # if calcTFIDF(j, i, cb.corpusDocList) > 8 and j not in temp: temp.append(j)
-    print(temp)
+# 단일문서 eoL 출력
+# print(eoListBuilder(inputPath, 45, cb.corpusEoList))
+
+# 단일문서 extractList 출력
+# print(extractList(eoListBuilder(inputPath, 45, cb.corpusEoList)))
 
 # 단일문서 RP 출력
 # print(eoListBuilder(input, 0, cb.corpusEoList, 2))
@@ -267,8 +328,8 @@ for i in cb.corpusDocList:
 #     print(eoListBuilder(i, 0, cb.corpusEoList, 2))
 
 # 문서(input)와 말뭉치(inputPath)에 대한 단어(text)의 TF-IDF 계산
-# text = "순호감도"
-# calcTFIDF(text, input, inputPath)
+# text = "미래에셋대우스팩4호"
+# print(calcTFIDF(text, input, cb.corpusDocList))
 
 # 모든 조사를 제거
 # word = "순이었다"
