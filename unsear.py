@@ -2,8 +2,10 @@
 import math
 import re
 import pandas
+from pandas.core.frame import DataFrame
 
 import sys
+
 platform = sys.platform
 if platform.startswith('win32'):
     from eunjeon import Mecab # type: ignore
@@ -279,9 +281,11 @@ def calcTFIDF(text, doc, corpusDocList):
     return tf*idf
 
 # 말뭉치 입력
-inputPath = r"C:/comfinder/longtext.csv"
+# inputPath = r"C:/comfinder/longtext.csv"
+
+# 인스턴스 생성
 # cb = CorpusBuilder(inputPath, 1)
-cb = CorpusBuilder(inputPath, 100)
+# cb = CorpusBuilder(inputPath, 100)
 # cb = CorpusBuilder(inputPath)
 
 # 말뭉치 대상 단어추출 프로세스
@@ -318,8 +322,11 @@ cb = CorpusBuilder(inputPath, 100)
 #     print(temp)
 
 # 새 방식
+inputPath = r"C:/comfinder/longtext.csv"
+# inputPath = r"C:/comfinder/text.csv"
+cb = CorpusBuilder(inputPath, 50)
 for i in cb.corpusDocList:
-    # eoL 반복되는 문자열
+    # eoL 반복되는 문자열 (1c)
     eoL = []
     # i: 개별문서
     for j in eoSplitter(i):
@@ -328,23 +335,47 @@ for i in cb.corpusDocList:
     eoL = list(filter(None, eoL))
     eoL = list(dict.fromkeys(eoL))
     # print(eoL)
+    # print(len(eoL))
 
-    # eoLR 반복되는 문자열에서 뒤음절 제거
+    # eoLR 반복되는 문자열에서 뒤음절 제거 (2c)
     eoLR = []
     for j in eoL:
         # j: 어절
         while isTransitive(j): j = removeTransitive(j)
         eoLR.append(j)
     # print(eoLR)
+    # print(len(eoLR))
 
     # 문자열/조사제거문자열 페어
     # for j in range(len(eoL)):
     #     print([eoL[j], eoLR[j]])
 
+    # eoL에서 좌측으로부터 가장 긴 등록된 명사 (3c)
+    eoLN = []
     for j in eoL:
-        print(j) # search all
+        l = []
+        l.append(j)
         for k in range(1, len(j)-1): # search str-1 to str up to 2 chars
-            print(j[:-k])
+            l.append(j[:-k])
+        # print(l)
+
+        for i in l:
+            morphan = cb.m.pos(i)
+            if len(morphan) == 1 and morphan[0][1][0] == 'N':
+                eoLN.append(i)
+                break
+            if i == l[-1]: eoLN.append("") # last of the loop
+    # print(eoLN)
+    # print(len(eoLN))
+
+    # for i in range(len(eoL)):
+    #     print(eoL[i] + " " + eoLR[i] + " " + eoLN[i])
+
+    # df = DataFrame(eoL, eoLR, eoLN)
+    # df = DataFrame(eoL, eoLR)
+    df = DataFrame(list(zip(eoL, eoLR, eoLN)), columns =['eoL', 'eoLR', 'eoLN']) 
+    print(df)
+    input("Press Enter to continue...")
 
 # input 단일문서
 # input = inputPath
