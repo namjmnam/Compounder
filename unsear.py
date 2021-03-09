@@ -324,6 +324,7 @@ def calcTFIDF(text, doc, corpusDocList):
 # 새 방식
 inputPath = r"C:/comfinder/longtext.csv"
 # inputPath = r"C:/comfinder/text.csv"
+outputPath = r"C:/comfinder/outcsv.csv"
 cb = CorpusBuilder(inputPath, 50)
 for i in cb.corpusDocList:
     # eoL 반복되는 문자열 (1c)
@@ -336,6 +337,7 @@ for i in cb.corpusDocList:
     eoL = list(dict.fromkeys(eoL))
     # print(eoL)
     # print(len(eoL))
+    # print(len(eoSplitter(i)))
 
     # eoLR 반복되는 문자열에서 뒤음절 제거 (2c)
     eoLR = []
@@ -371,24 +373,42 @@ for i in cb.corpusDocList:
     # for i in range(len(eoL)):
     #     print(eoL[i] + " " + eoLR[i] + " " + eoLN[i])
 
-    # 일치율 (4c)
-    score = []
-    for j in range(len(eoL)):
-        ratio = int(((len(eoLR[j]) + len(eoLN[j])) / (2 * len(eoL[j]))) * 100)
-        if len(eoLR[j]) == len(eoLN[j]): score.append(-ratio)
-        else: score.append(ratio)
-
-    # TF-IDF? (5c)
+    # TF-IDF (5c?)
     tfidf = []
     for j in range(len(eoL)):
         ti = calcTFIDF(eoL[j], i, cb.corpusDocList)
         tfidf.append(ti)
 
+    # 일치율 (4c)
+    score = []
+    for j in range(len(eoL)):
+        # ratio = int(((len(eoLR[j]) + len(eoLN[j])) / (2 * len(eoL[j]))) * 100)
+        ratio = int((max(len(eoLR[j]), len(eoLN[j])) / (len(eoL[j]))) * 100)
+
+        # if len(eoLR[j]) == len(eoLN[j]) or tfidf[j] < 5: score.append(-ratio)
+        # if len(eoLR[j]) == len(eoLN[j]): score.append(-ratio)
+        if len(eoL[j]) == len(eoLN[j]) or tfidf[j] < 8: score.append(-ratio)
+        else: score.append(ratio)
+
+    # 문맥 (5c?)
+    context = []
+    radius = 10
+    for j in range(len(eoL)):
+        wordstart = i.index(eoL[j])
+        wordend = wordstart + len(eoL[j])
+        if wordstart-radius < 0: start = 0
+        else: start = wordstart-radius
+        # context.append(i[start:wordend+radius])
+        context.append(i[start:wordstart] + "<" + i[wordstart:wordend] + ">" + i[wordend:wordend+radius])
+
     # df = DataFrame(eoL, eoLR, eoLN)
     # df = DataFrame(eoL, eoLR)
-    df = DataFrame(list(zip(eoL, eoLR, eoLN, score, tfidf)), columns =['최장일치', '조사제거', '기등록어', '%', 'TF-IDF']) 
+    # df = DataFrame(list(zip(eoL, eoLR, eoLN, score, tfidf)), columns =['최장일치', '조사제거', '기등록어', '%', 'TF-IDF']) 
+    # df = DataFrame(list(zip(eoL, eoLR, eoLN, score)), columns =['최장일치', '조사제거', '기등록어', '%']) 
+    df = DataFrame(list(zip(eoL, eoLR, eoLN, score, context)), columns =['최장일치', '조사제거', '기등록어', '%', '문맥']) 
+    df = df[df["%"] > 0]
     sorted = df.sort_values(by=['%'], axis=0, ascending=False)
-    sorted.to_csv(r"C:/comfinder/outcsv.csv", encoding='euc-kr', index=False)
+    sorted.to_csv(outputPath, encoding='euc-kr', index=False)
     print(sorted)
     # df.to_csv(r"C:/comfinder/outcsv.csv", encoding='euc-kr', index=False)
     # print(df)
