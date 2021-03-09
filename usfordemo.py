@@ -2,6 +2,7 @@
 import math
 import re
 import pandas
+from pandas.core.frame import DataFrame
 
 import sys
 platform = sys.platform
@@ -66,7 +67,6 @@ def eoShortener(word):
 # 최장공통 부분문자열을 추출하는 반복문 (leftSearcher, eoShortener에 의존)
 def leftLongestCommonSub(word, eoList):
     track = []
-
     for i in range(len(eoShortener(word))):
         wordCurrent = eoShortener(word)[i]
         wordBefore = eoShortener(word)[i-1]
@@ -76,7 +76,9 @@ def leftLongestCommonSub(word, eoList):
             # if freq == track[-1] and freq > 1: # 한 문자 줄였는데 빈도가 같을 경우 그 전 부분문자열을 채택
             if freq < track[-1] * 1.1 and freq > 1: # 한 문자 줄였는데 빈도가 크게 차이나지 않는 경우 그 전 부분문자열 채택
                 return wordBefore
+
         track.append(freq)
+        return wordCurrent # 마지막까지 남은 경우 그냥 등록
 
 # 입력인자를 형식에 맞게 고침
 def inputToFormat(inputPath, index=0):
@@ -122,49 +124,31 @@ def cleanText(text):
     text = text.upper()
     return text
 
-# 문서 단위 어절 리스트 구축 (inputToFormat, cleanText, leftLongestCommonSub에 의존)
-def eoListBuilder(inputPath, index, corpusEoList):
-    inputPath = inputToFormat(inputPath, index)
+def eoSplitter(doc):
+    doc = cleanText(doc)
+    temp = doc.split(' ')
+    return [i for i in temp if len(re.sub(r'[0-9]+', '-', i)) >= 2]
 
-    inputPath = cleanText(inputPath)
-    temp = inputPath.split(' ')
-    eoL = [i for i in temp if len(re.sub(r'[0-9]+', '-', i)) >= 2]
-
-    # 숫자, 단위 필터링 적용
-    # unitfilter = re.compile(r'[0-9]+.[0-9]+%|[0-9]+[조억만천원년월달일시분][0-9]+')
-    unitfilter = re.compile(r'[0-9]+.[0-9]+%|[0-9]+[조억만천원년월달일시분위여건개층][0-9]*|[0-9]+거래일')
-
-    # 말뭉치 어절 리스트
-    out = []
-    for i in eoL:
-        word = leftLongestCommonSub(i, corpusEoList)
-        if word != None and not unitfilter.search(word):
-            out.append(word)
-    out = list(dict.fromkeys(out))
+# 마지막 형태소가 조사일 경우 제거 (클래스에 의존: cb.exclude, cb.m)
+def removeTransitive(eo):
+    split = cb.m.pos(eo)
+    for i in cb.exclude:
+        if len(split) > 1 and i in split[-1][1]:
+            del split[-1]
+        if len(split) == 1 and i in split[-1][1]:
+            return ""
+    out = ""
+    for i in split:
+        out += i[0]
     return out
 
-# 어절 리스트에서 명사 리스트 출력 (클래스에 의존: cb.exclude, cb.m)
-def extractList(eoList):
-    temp = []
-    banned = []
-    for i in eoList: # e.g '설명했다'
-        possiblyNoun = True
-
-        # if len(cb.m.pos(i)) == 1 and cb.m.pos(i)[0][1][0] == 'N':
-        #     # 이미 등록된 명사일 경우 제외
-        #     continue
-
-        for j in cb.exclude:
-            # if (j in cb.m.pos(i)[-1][1] or cb.m.pos(i)[-1] == ('의', 'NNG')) and cb.m.pos(i)[-1] != ('도', 'JX') and cb.m.pos(i)[-1] != ('리온', 'EC') and i != '비대면':
-                # 가장 마지막 형태소가 조사일 경우(exclude 조건에 해당될 경우) / '의'로 끝날 경우 / '도'로 끝날 경우는 예외 / '리온'으로 끝날 경우도 예외 / '비대면' 예외
-                # 예외: 순호감도, 셀트리온, 비대면, 퍼블리싱(퍼블리), 아일리아와
-            if j in cb.m.pos(i)[-1][1]:
-                possiblyNoun = False
-                banned.append(i)
-                break
-        if possiblyNoun: temp.append(i)
-    eoList = temp
-    return eoList
+# 끝이 조사인 경우 boolean으로 출력 (클래스에 의존: cb.exclude, cb.m)
+def isTransitive(eo):
+    split = cb.m.pos(eo)
+    for i in cb.exclude:
+        if len(split) > 0 and i in split[-1][1]:
+            return True
+    return False
 
 # TF-IDF calculation
 def calcTFIDF(text, doc, corpusDocList):
@@ -180,21 +164,71 @@ def calcTFIDF(text, doc, corpusDocList):
     idf = math.log(len(corpusDocList) / deno)
     return tf*idf
 
-# 말뭉치 입력
+# 단어추출 프로세스
 inputPath = r"C:/comfinder/longtext.csv"
-# cb = CorpusBuilder(inputPath, 1)
-cb = CorpusBuilder(inputPath, 100)
-# cb = CorpusBuilder(inputPath)
-
-# 말뭉치 대상 단어추출 프로세스
-# 문제점1: 2자 명사는 추출하기 힘듬: leftLongestCommonSub에서 수정
-# 문제점2: leftLongestCommonSub에서 명사여도 줄인 문자열이 매우 흔한 경우(예: 네이버 -> 네이, 코스피 -> 코스) 줄인 문자열을 채택함
-# 문제점3: extractList에서 너무 많은것들이 걸러짐
+outputPath = r"C:/comfinder/outcsv.csv"
+cb = CorpusBuilder(inputPath)
+# cb = CorpusBuilder(inputPath, 10)
 for i in cb.corpusDocList:
-    eoL = eoListBuilder(i, 0, cb.corpusEoList)
-    temp = []
-    # 추출된 단어
-    for j in extractList(eoL):
-        if calcTFIDF(j, i, cb.corpusDocList) > 8: temp.append(j)
-        # temp.append(j)
-    print(temp)
+    # eoL 반복되는 문자열 (1c)
+    eoL = []
+    # i: 개별문서
+    for j in eoSplitter(i):
+        # j: 개별어절
+        eoL.append(leftLongestCommonSub(j, cb.corpusEoList))
+    eoL = list(filter(None, eoL))
+    eoL = list(dict.fromkeys(eoL))
+
+    # eoLR 반복되는 문자열에서 뒤음절 제거 (2c)
+    eoLR = []
+    for j in eoL:
+        # j: 어절
+        while isTransitive(j): j = removeTransitive(j)
+        eoLR.append(j)
+
+    # eoL에서 좌측으로부터 가장 긴 등록된 명사 (3c)
+    eoLN = []
+    for j in eoL:
+        l = []
+        l.append(j)
+        for k in range(1, len(j)-1): # 최대 2자까지 검색
+            l.append(j[:-k])
+
+        for k in l:
+            morphan = cb.m.pos(k)
+            if len(morphan) == 1 and morphan[0][1][0] == 'N':
+                eoLN.append(k)
+                break
+            if k == l[-1]: eoLN.append("") # 마지막 반복문
+
+    # TF-IDF
+    tfidf = []
+    for j in range(len(eoL)):
+        ti = calcTFIDF(eoL[j], i, cb.corpusDocList)
+        tfidf.append(ti)
+
+    # 일치율 (4c)
+    score = []
+    for j in range(len(eoL)):
+        ratio = int((max(len(eoLR[j]), len(eoLN[j])) / (len(eoL[j]))) * 100)
+        if len(eoL[j]) == len(eoLN[j]) or tfidf[j] < 8: score.append(-ratio)
+        else: score.append(ratio)
+
+    # 문맥 (5c?)
+    context = []
+    radius = 10
+    for j in range(len(eoL)):
+        wordstart = i.index(eoL[j])
+        wordend = wordstart + len(eoL[j])
+        if wordstart-radius < 0: start = 0
+        else: start = wordstart-radius
+        # context.append(i[start:wordend+radius])
+        context.append(i[start:wordstart] + "<" + i[wordstart:wordend] + ">" + i[wordend:wordend+radius])
+
+    # df = DataFrame(list(zip(eoL, eoLR, eoLN, score)), columns =['최장일치', '조사제거', '기등록어', '%']) 
+    df = DataFrame(list(zip(eoL, eoLR, eoLN, score, context)), columns =['최장일치', '조사제거', '기등록어', '%', '문맥']) 
+    df = df[df["%"] > 0]
+    sorted = df.sort_values(by=['%'], axis=0, ascending=False)
+    sorted.to_csv(outputPath, encoding='euc-kr', index=False)
+    print(sorted)
+    input("Press Enter to continue...")
