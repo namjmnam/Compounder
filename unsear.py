@@ -115,7 +115,8 @@ def leftLongestCommonSub(word, eoList, mode=1):
 
 def leftLongestCommonSubNew(word, eoList):
     track = []
-    for i in range(len(eoShortener(word))):
+    iter = len(eoShortener(word))
+    for i in range(iter):
         wordCurrent = eoShortener(word)[i]
         wordBefore = eoShortener(word)[i-1]
         freq = leftSearcher(wordCurrent, eoList)
@@ -126,7 +127,7 @@ def leftLongestCommonSubNew(word, eoList):
                 return wordBefore
 
         track.append(freq)
-        return wordCurrent # 마지막까지 남은 경우 그냥 등록
+        if i == iter-1 : return wordCurrent # 마지막까지 남은 경우 그냥 등록
 
 # 입력인자를 형식에 맞게 고침
 def inputToFormat(inputPath, index=0):
@@ -391,6 +392,7 @@ for i in cb.corpusDocList:
         else: score.append(ratio)
 
     # 문맥 (5c?)
+    # 단순히 문자열을 검색하는것이기 때문에 우연히 같은 문자열을 찾아 문맥을 출력할 수도 있다는 단점이 있다.
     context = []
     radius = 10
     for j in range(len(eoL)):
