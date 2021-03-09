@@ -359,27 +359,34 @@ for i in cb.corpusDocList:
             l.append(j[:-k])
         # print(l)
 
-        for i in l:
-            morphan = cb.m.pos(i)
+        for k in l:
+            morphan = cb.m.pos(k) # Mecab을 다시 메모리에 넣어야하는지? 다음 테이블을 불러올 시 사전에 변경사항이 적용이 되는지 모르겠음.
             if len(morphan) == 1 and morphan[0][1][0] == 'N':
-                eoLN.append(i)
+                eoLN.append(k)
                 break
-            if i == l[-1]: eoLN.append("") # last of the loop
+            if k == l[-1]: eoLN.append("") # last of the loop
     # print(eoLN)
     # print(len(eoLN))
 
     # for i in range(len(eoL)):
     #     print(eoL[i] + " " + eoLR[i] + " " + eoLN[i])
 
+    # 일치율 (4c)
     score = []
-    for i in range(len(eoL)):
-        ratio = int(((len(eoLR[i]) + len(eoLN[i])) / (2 * len(eoL[i]))) * 100)
-        if len(eoLR[i]) == len(eoLN[i]): score.append(-ratio)
+    for j in range(len(eoL)):
+        ratio = int(((len(eoLR[j]) + len(eoLN[j])) / (2 * len(eoL[j]))) * 100)
+        if len(eoLR[j]) == len(eoLN[j]): score.append(-ratio)
         else: score.append(ratio)
+
+    # TF-IDF? (5c)
+    tfidf = []
+    for j in range(len(eoL)):
+        ti = calcTFIDF(eoL[j], i, cb.corpusDocList)
+        tfidf.append(ti)
 
     # df = DataFrame(eoL, eoLR, eoLN)
     # df = DataFrame(eoL, eoLR)
-    df = DataFrame(list(zip(eoL, eoLR, eoLN, score)), columns =['최장일치', '조사제거', '기등록어', '%']) 
+    df = DataFrame(list(zip(eoL, eoLR, eoLN, score, tfidf)), columns =['최장일치', '조사제거', '기등록어', '%', 'TF-IDF']) 
     sorted = df.sort_values(by=['%'], axis=0, ascending=False)
     sorted.to_csv(r"C:/comfinder/outcsv.csv", encoding='euc-kr', index=False)
     print(sorted)
