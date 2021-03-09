@@ -67,6 +67,7 @@ def eoShortener(word):
 # 최장공통 부분문자열을 추출하는 반복문 (leftSearcher, eoShortener에 의존)
 def leftLongestCommonSub(word, eoList):
     track = []
+    iter = len(eoShortener(word))
     for i in range(len(eoShortener(word))):
         wordCurrent = eoShortener(word)[i]
         wordBefore = eoShortener(word)[i-1]
@@ -78,7 +79,7 @@ def leftLongestCommonSub(word, eoList):
                 return wordBefore
 
         track.append(freq)
-        return wordCurrent # 마지막까지 남은 경우 그냥 등록
+        if i == iter-1 : return wordCurrent # 마지막까지 남은 경우 그냥 등록
 
 # 입력인자를 형식에 맞게 고침
 def inputToFormat(inputPath, index=0):
@@ -153,7 +154,7 @@ def isTransitive(eo):
 # TF-IDF calculation
 def calcTFIDF(text, doc, corpusDocList):
     # calculate TF
-    tf = doc.count(text)
+    tf = math.log(doc.count(text) + 1)
     if tf == 0: tf = 0.001
     # calculate IDF
     deno = 0
@@ -211,7 +212,8 @@ for i in cb.corpusDocList:
     score = []
     for j in range(len(eoL)):
         ratio = int((max(len(eoLR[j]), len(eoLN[j])) / (len(eoL[j]))) * 100)
-        if len(eoL[j]) == len(eoLN[j]) or tfidf[j] < 8: score.append(-ratio)
+        # if len(eoL[j]) == len(eoLN[j]) or tfidf[j] < 5: score.append(-ratio)
+        if len(eoL[j]) == len(eoLN[j]) or tfidf[j] < 3.5: score.append(-1)
         else: score.append(ratio)
 
     # 문맥 (5c?)
@@ -226,9 +228,12 @@ for i in cb.corpusDocList:
         context.append(i[start:wordstart] + "<" + i[wordstart:wordend] + ">" + i[wordend:wordend+radius])
 
     # df = DataFrame(list(zip(eoL, eoLR, eoLN, score)), columns =['최장일치', '조사제거', '기등록어', '%']) 
-    df = DataFrame(list(zip(eoL, eoLR, eoLN, score, context)), columns =['최장일치', '조사제거', '기등록어', '%', '문맥']) 
-    df = df[df["%"] > 0]
-    sorted = df.sort_values(by=['%'], axis=0, ascending=False)
+    # df = DataFrame(list(zip(eoL, eoLR, eoLN, score, context)), columns =['최장일치', '조사제거', '기등록어', '%', '문맥'])
+    df = DataFrame(list(zip(eoL, eoLR, eoLN, score, context, tfidf)), columns =['최장일치', '조사제거', '기등록어', '%', '문맥', 'TF-IDF'])
+    df = df[df["%"] >= 0]
+    # sorted = df.sort_values(by=['%'], axis=0, ascending=False)
+    sorted = df.sort_values(by=['TF-IDF'], axis=0, ascending=False)
+    sorted = sorted.drop('TF-IDF', axis=1)
     sorted.to_csv(outputPath, encoding='euc-kr', index=False)
     print(sorted)
     input("Press Enter to continue...")
