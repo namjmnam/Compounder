@@ -371,10 +371,20 @@ for i in cb.corpusDocList:
     # for i in range(len(eoL)):
     #     print(eoL[i] + " " + eoLR[i] + " " + eoLN[i])
 
+    score = []
+    for i in range(len(eoL)):
+        ratio = int(((len(eoLR[i]) + len(eoLN[i])) / (2 * len(eoL[i]))) * 100)
+        if len(eoLR[i]) == len(eoLN[i]): score.append(-ratio)
+        else: score.append(ratio)
+
     # df = DataFrame(eoL, eoLR, eoLN)
     # df = DataFrame(eoL, eoLR)
-    df = DataFrame(list(zip(eoL, eoLR, eoLN)), columns =['eoL', 'eoLR', 'eoLN']) 
-    print(df)
+    df = DataFrame(list(zip(eoL, eoLR, eoLN, score)), columns =['최장일치', '조사제거', '기등록어', '%']) 
+    sorted = df.sort_values(by=['%'], axis=0, ascending=False)
+    sorted.to_csv(r"C:/comfinder/outcsv.csv", encoding='euc-kr', index=False)
+    print(sorted)
+    # df.to_csv(r"C:/comfinder/outcsv.csv", encoding='euc-kr', index=False)
+    # print(df)
     input("Press Enter to continue...")
 
 # input 단일문서
