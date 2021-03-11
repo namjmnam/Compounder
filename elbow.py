@@ -25,9 +25,9 @@ def cleanText(text):
     pattern = '<[^>]*>'
     text = re.sub(pattern=pattern, repl=' ', string=text)
     # pattern = '''[^-/.()&*+%$·,`'"‘’▶\w\s]''' # 좀 더 관대한 필터링
-    # pattern = "[^-/.()&*+%$\w\s]" # 관대한 필터링
-    # pattern = "[^-/.&*+%$\w\s]" # 관대한 필터링
-    pattern = "[^\w\s]"
+    # pattern = "[^-/.()&*+%$\w\s]" # 괄호를 걸러내지 않는 필터링
+    pattern = "[^-/.&*+%$\w\s]"
+    # pattern = "[^\w\s]" # 엄격한 필터링
     text = re.sub(pattern=pattern, repl=' ', string=text)
 
     text = text.replace('\n', ' ')
@@ -106,7 +106,7 @@ def extOutput(corpusText, corpusDocList, corpusEoList, index=0):
     
     temp = []
     for j in extractedNouns:
-        if calcTFIDF(j, rawDocument, corpusDocList) > 3.5: temp.append(j)
+        if calcTFIDF(j, rawDocument, corpusDocList) > 3.5: temp.append(j) # TF-IDF가 3.5 초과인 경우만 등록
     extractedNouns = temp
     return extractedNouns
 
