@@ -1,4 +1,5 @@
 # coding=UTF-8
+import math
 import re
 import pandas
 
@@ -25,15 +26,13 @@ def cleanText(text):
     text = re.sub(pattern=pattern, repl=' ', string=text)
     # pattern = '''[^-/.()&*+%$·,`'"‘’▶\w\s]''' # 좀 더 관대한 필터링
     # pattern = "[^-/.()&*+%$\w\s]" # 관대한 필터링
+    # pattern = "[^-/.&*+%$\w\s]" # 관대한 필터링
     pattern = "[^\w\s]"
     text = re.sub(pattern=pattern, repl=' ', string=text)
 
     text = text.replace('\n', ' ')
     text = text.replace('\t', ' ')
     text = text.replace('\r', ' ')
-
-    # pattern = "[0-9]+\.[0-9]+\.[0-9]+\..*여기를 누르시면 크게 보실 수 있습니다" # 매일경제 전용
-    # text = re.sub(pattern=pattern, repl=' ', string=text)
 
     text = re.sub(' +', ' ', text)
     return text
@@ -55,6 +54,16 @@ def leftSearcher(word, eoList):
     for i in eoList:
         if len(i) >= max and i[0:max] == word: out.append(i)
     return len(out)
+
+# TF-IDF calculation
+def calcTFIDF(text, doc, corpusDocList):
+    # calculate TF
+    tf = math.log(doc.count(text) + 1)
+    if tf == 0: return 0
+    # calculate IDF
+    denominator = sum(text in s for s in corpusDocList)
+    idf = math.log(len(corpusDocList) / denominator)
+    return tf*idf
 
 # 추출 프로세스
 def extOutput(corpusText, corpusDocList, corpusEoList, index=0):
@@ -85,7 +94,6 @@ def extOutput(corpusText, corpusDocList, corpusEoList, index=0):
         scores.append(scores[-1] * 0.8) # 임시방편1
         # 빈도수의 엘보 포인트(elbow point)에서 명사로 등록
         if scores[0] > scores[1] * 1.1: chosen.append(i[0]) # 임시방편2
-        # if scores[-1] > scores[-2] * 0.9: chosen.append(i[-1])
         for j in range(1, len(i)):
             scoreBefore = scores[j-1]
             scoreCurrent = scores[j]
@@ -95,10 +103,27 @@ def extOutput(corpusText, corpusDocList, corpusEoList, index=0):
         for j in range(len(chosen)):
             if rawDocument.count(chosen[j]) >= 2: extractedNouns.append(chosen[j])
     extractedNouns = list(dict.fromkeys(extractedNouns))
+    
+    temp = []
+    for j in extractedNouns:
+        if calcTFIDF(j, rawDocument, corpusDocList) > 3.5: temp.append(j)
+    extractedNouns = temp
     return extractedNouns
 
 inputPath = r"C:/comfinder/longtext.csv"
 cb = CorpusBuilder(inputPath)
 
-for i in range(10):
-    print(extOutput(cb.corpusText, cb.corpusDocList, cb.corpusEoList, i))
+output = []
+for i in range(20):
+    out = extOutput(cb.corpusText, cb.corpusDocList, cb.corpusEoList, i)
+    # print(out)
+    print(i)
+    for j in out:
+        output.append(j)
+output = list(dict.fromkeys(output))
+output.sort()
+print(output)
+
+f = open("C:/comfinder/out.txt", 'w', encoding='utf8')
+f.write('\n'.join(output))
+f.close()
