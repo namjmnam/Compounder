@@ -388,7 +388,9 @@ for i in cb.corpusDocList:
 
         # if len(eoLR[j]) == len(eoLN[j]) or tfidf[j] < 5: score.append(-ratio)
         # if len(eoLR[j]) == len(eoLN[j]): score.append(-ratio)
-        if len(eoL[j]) == len(eoLN[j]) or tfidf[j] < 8: score.append(-ratio)
+        # if len(eoL[j]) == len(eoLN[j]) or tfidf[j] < 8: score.append(-ratio)
+        # if len(eoL[j]) == len(eoLN[j]): score.append(-1)
+        if len(eoL[j]) == len(eoLN[j]) or tfidf[j] < 3.5: score.append(-1)
         else: score.append(ratio)
 
     # 문맥 (5c?)
@@ -396,12 +398,22 @@ for i in cb.corpusDocList:
     context = []
     radius = 10
     for j in range(len(eoL)):
-        wordstart = i.index(eoL[j])
-        wordend = wordstart + len(eoL[j])
-        if wordstart-radius < 0: start = 0
-        else: start = wordstart-radius
-        # context.append(i[start:wordend+radius])
-        context.append(i[start:wordstart] + "<" + i[wordstart:wordend] + ">" + i[wordend:wordend+radius])
+        # wordstart = i.index(eoL[j])
+        # wordend = wordstart + len(eoL[j])
+        # if wordstart-radius < 0: start = 0
+        # else: start = wordstart-radius
+        # # context.append(i[start:wordend+radius])
+        # context.append(i[start:wordstart] + "<" + i[wordstart:wordend] + ">" + i[wordend:wordend+radius])
+        
+        allIndex = [m.start() for m in re.finditer(eoL[j], i)]
+        contextList = []
+        for k in allIndex:
+            wordstart = k
+            wordend = wordstart + len(eoL[j])
+            if wordstart-radius < 0: start = 0
+            else: start = wordstart-radius
+            contextList.append(i[start:wordstart] + "<" + i[wordstart:wordend] + ">" + i[wordend:wordend+radius])
+        context.append("..." + "...".join(contextList) + "...")
 
     # df = DataFrame(eoL, eoLR, eoLN)
     # df = DataFrame(eoL, eoLR)
