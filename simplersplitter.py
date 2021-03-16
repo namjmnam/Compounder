@@ -98,7 +98,7 @@ class Splitter:
         iter = self.eoList[:]
         iter = list(dict.fromkeys(iter))
         for i in iter:
-            if len(i) > 1: self.lplist.append(self.genLP(i)) # 괄호가 한 쪽만 포함된 LP를 제거할지? (TBF)
+            if len(i) > 1: self.lplist.append(self.genLP(i)) # 괄호가 한 쪽만 포함된 LP를 제거할지? (TBF2)
 
         # 명사로 추정되는 문자열 리스트 추출 -> extnouns
         self.extnouns = []
@@ -277,8 +277,8 @@ class Splitter:
         self.trpmidictnew = dict(zip(cwListNew, trpmiListNew))
 
         # 기존의 복합단어 추출 (compounder 방식)
-        self.fList = self.extractFList(self.extnouns, self.rawdoc)        
-        self.pairListOld = []
+        self.fList = self.extractFList(self.extnouns, self.rawdoc) # 이건 문제 없어보이는데
+        self.pairListOld = [] # TBF3 (S&P KOREA BMI가 안뜸...)
         for i in range(len(self.fList)):
             n = self.genCW(self.fList[i])
             for j in n:
@@ -289,6 +289,8 @@ class Splitter:
                     self.pairListOld.append(j)
         # 일부분 중복되는 복합단어를 탐지한 뒤 추가
         self.pairListOld += self.detectRedundant(self.pairListOld)
+        # print("Pairs", self.pairListOld)
+        # print("Reduns", self.detectRedundant(self.pairListOld)) # TBF3 (아크 이노베이션 ETF가 안뜸...)
 
         # 기존방식으로 추출한 복합단어를 한 문자열로 묶은 리스트
         cwListOld = []
@@ -340,6 +342,12 @@ class Splitter:
             elif inchain == True:
                 inchain = False
                 indexchain.append(i)
+                chainlist.append(indexchain)
+                indexchain = []
+            # 리스트 끝이 꼬리인 경우 # TBF3 해결?
+            if i == len(cwlist)-2 and inchain:
+                inchain = False
+                indexchain.append(i+1)
                 chainlist.append(indexchain)
                 indexchain = []
         # 출력 리스트 구축
@@ -414,7 +422,8 @@ class Splitter:
         if eojeol[-1] == '.': eojeol = eojeol[:-1]
         for i in range(2, len(eojeol)+1):
             if len(eojeol[:i].replace('.', '')) > 1 and eojeol[:1][-1] != '.':
-                out.append(eojeol[:i])
+                # out.append(eojeol[:i])
+                if not self.hasIncompleteParenthesis(eojeol[:i]): out.append(eojeol[:i]) # TBF2 해결?
         return out
 
     # 리스트 형태의 복합단어를 문서 전체에서 검색
@@ -542,12 +551,23 @@ class Splitter:
         for i in sentList:
             temp = i
             sublist = []
-            for j in nounlist:
-                while j in temp:
-                    index = re.search(re.escape(j), temp).start()
-                    temp = temp.replace(j, '', 1) # 서로 문자열이 포함되는 명사들을 배제시키는 문제점이 있다. (TBF)
-                    sublist.append([j, index])
+            # tempnounlist = sorted(nounlist, key=len, reverse=True) # 긴 명사부터 찾아내기: TBF1 해결?
+            # TBF4 해결방안: tempnounlist에 서로를 포함한 명사들은 제거해본다.
+            tempnounlist = self.removeIncluded(nounlist) # 문제점: 아크, 아크라이트 둘 다 있어야하는데 아크가 사라짐 TBF4 내지 TBF5 -> 해결됨(?)
+            for j in range(len(tempnounlist)):
+                while tempnounlist[j] in temp: # TBF4: 명사들이 문장에 나열된 순서가 안 맞음(S&P KOREA BMI인데 S&P BMI KOREA라고 나옴)
+                    index = re.search(re.escape(tempnounlist[j]), temp).start()
+                    temp = temp.replace(tempnounlist[j], '', 1) # 서로 문자열이 포함되는 명사들을 배제시키는 문제점이 있다. (TBF1)
+                    sublist.append([tempnounlist[j], index])
             templist.append(sublist)
+
+            # # 기존 TBF1 문제점이 있는 방식
+            # for j in nounlist:
+            #     while j in temp:
+            #         index = re.search(re.escape(j), temp).start()
+            #         temp = temp.replace(j, '', 1)
+            #         sublist.append([j, index])
+            # templist.append(sublist)
         
         for i in templist:
             sublist = []
@@ -567,7 +587,17 @@ class Splitter:
         return out
 
     def hasIncompleteParenthesis(self, text):
-        pass
+        if '(' not in text and ')' not in text or '(' in text and ')' in text: return False
+        else: return True
+
+    def removeIncluded(self, wordlist):
+        out = wordlist[:]
+        for i in wordlist:
+            for j in wordlist:
+                if len(i) < len(j) and i in j:
+                    if i in out: out.remove(i)
+                    out.append(i)
+        return out
 
 def inputToFormat(inputPath, index=0):
     # 50자보다 길 경우 문자열로 인식
@@ -724,3 +754,4 @@ for i in range(iterNum):
     out += [i for i in list(s.trpmidictold.keys()) if s.trpmidictold[i] >= 0.3] # 복합단어 추출 방식2
     out = list(dict.fromkeys(out))
     print(out)
+    # print("nouns: ", s.fList)
